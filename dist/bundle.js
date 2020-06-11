@@ -24093,13 +24093,13 @@ class ShapeGrammar {
     fillMeshNames() {
         this.meshNames = new Map();
         OBJ.downloadMeshes({
-            'cube': '/geo/cube.obj',
-            'window': '/geo/windowplane.obj',
-            'plane': '/geo/plane.obj',
-            'roof1': '/geo/bevelroof.obj',
-            'roof2': '/geo/slantroof.obj',
-            'roof3': '/geo/outroof.obj',
-            'watertower': '/geo/watertower.obj'
+            'cube': './geo/cube.obj',
+            'window': './geo/windowplane.obj',
+            'plane': './geo/plane.obj',
+            'roof1': './geo/bevelroof.obj',
+            'roof2': './geo/slantroof.obj',
+            'roof3': './geo/outroof.obj',
+            'watertower': './geo/watertower.obj'
         }, (meshes) => {
             let cube_mesh = new __WEBPACK_IMPORTED_MODULE_1__Mesh__["a" /* default */]('/geo/cube.obj');
             cube_mesh.loadMesh(meshes.cube);

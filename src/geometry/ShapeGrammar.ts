@@ -516,13 +516,13 @@ refreshGrammar() {
   fillMeshNames() {
     this.meshNames = new Map<string, Mesh>();
     OBJ.downloadMeshes({
-      'cube': '/geo/cube.obj',
-      'window': '/geo/windowplane.obj',
-      'plane': '/geo/plane.obj',
-      'roof1': '/geo/bevelroof.obj',
-      'roof2': '/geo/slantroof.obj',
-      'roof3': '/geo/outroof.obj',
-      'watertower': '/geo/watertower.obj'
+      'cube': './geo/cube.obj',
+      'window': './geo/windowplane.obj',
+      'plane': './geo/plane.obj',
+      'roof1': './geo/bevelroof.obj',
+      'roof2': './geo/slantroof.obj',
+      'roof3': './geo/outroof.obj',
+      'watertower': './geo/watertower.obj'
 
     }, (meshes: any) => {
       let cube_mesh = new Mesh('/geo/cube.obj');
