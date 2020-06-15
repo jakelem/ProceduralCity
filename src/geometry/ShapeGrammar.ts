@@ -145,9 +145,9 @@ class ShapeNodeFunctions {
     s.depth += 1;
     let axis = Math.random() < 0.5 ? 0 : 2;
 
-    if(s.depth > 1) {
+    //if(s.depth > 1) {
       s.symbol = "structure"
-    }
+    //}
 
     if(s.scale[axis] < 0.9) {
       return new Array<ShapeNode>(s);
@@ -170,12 +170,13 @@ class ShapeNodeFunctions {
 
   }
 
-  static replaceCubeWithPlanes(s : ShapeNode) : Array<ShapeNode> {
+  //creates faces of the cube and adds them as children to node s
+  static replaceCubeWithPlanes(s : ShapeNode, excludeTop = false) {
     console.log("replacewplanes");
     let res = new Array<ShapeNode>();
 
-    s.symbol = "plane";
-
+    //s.symbol = "plane";
+    s.meshname = "";
     for(let i = 0; i < 3; i++) {
       //i is the axis of rotation
       //translation axis
@@ -184,37 +185,38 @@ class ShapeNodeFunctions {
         ti = (i + 2) % 3;
       }
       for(let j = -1; j <= 1; j+=2) {
+        if((i == 1 && j == -1) || (i == 1 && excludeTop)) {
+          continue;
+        }
         let xyPos = new ShapeNode();
-        xyPos.copyshallow(s);
+       // xyPos.copyshallow(s);
         xyPos.meshname =  "plane";
+        xyPos.position[1] = 0;
 
         if(i == 0) {
           //xy plane
-          xyPos.rotation[0] = 90 * j;
-          xyPos.scale[0] = s.scale[0];
-          xyPos.scale[2] = s.scale[1];  
-          xyPos.position[2] += j * s.scale[2] * 0.5;
+          xyPos.rotation[0] = 90;
+          xyPos.position[2] += j * 0.5;
+          xyPos.scale[1] = 1.0 / s.scale[2] * j;
         } else if (i == 1) {
           //xz plane
-          xyPos.scale[0] = s.scale[0];
-          xyPos.scale[1] = j;
-          xyPos.scale[2] = s.scale[2];  
-          xyPos.position[1] += j * s.scale[1] * 0.5;
+          xyPos.position[1] += j * 0.5;  
+          
         } else {
           //yz plane
-          xyPos.rotation[2] = -90 * j;
-          xyPos.scale[0] = s.scale[1];
-          xyPos.scale[2] = s.scale[2];  
-          xyPos.position[0] += j * s.scale[0] * 0.5;
+          xyPos.rotation[0] = 90;
+          xyPos.rotation[2] = 90;
+          xyPos.position[0] += j * 0.5;
+          xyPos.scale[1] = -1.0 / s.scale[0] * j;
 
         }
-
-        
-        res.push(xyPos);
+        s.children.push(xyPos);
       }
       
     }
-    return res;
+
+    console.log(res);
+    //return new Array<ShapeNode>(s);
   }
 
   static decorateRoof(s : ShapeNode) : Array<ShapeNode> {
@@ -242,9 +244,9 @@ class ShapeNodeFunctions {
   static stackY(s : ShapeNode) : Array<ShapeNode> {
     console.log("growYOffsetX");
     s.depth += 1;
-    if(s.depth > 1) {
+    //if(s.depth > 1) {
       s.symbol = "structure"
-    }    
+    //}    
     let res = new Array<ShapeNode>();
     let dup = new ShapeNode();
     dup.copyshallow(s);
@@ -269,16 +271,20 @@ class ShapeNodeFunctions {
 
   static entranceLevelsRoof(s : ShapeNode) : Array<ShapeNode> {
     console.log("entranceLevelsRoof");
-    let res = ShapeNodeFunctions.splitAlongSym(s, 0.2, 1);
-    res[0].symbol = "ground";
+    let roofsize = Math.min(0.6 / s.scale[1], 0.3);
+    s.meshname = '';
+    let res = ShapeNodeFunctions.splitAlongSym(s, roofsize, 1);
+    res[0].symbol = "entrance";
     res[1].symbol = "level";
     res[2].symbol = "roof";
+
+    ShapeNodeFunctions.replaceCubeWithPlanes(res[0], true);
+    ShapeNodeFunctions.replaceCubeWithPlanes(res[1], true);
     return res;
   }
 
-
   static divBySize(s : ShapeNode) : Array<ShapeNode> {
-    console.log("divHalves");
+    console.log("divBySize");
     s.terminal = true;
     let windowX = 0.3 + 0.9 * Math.random();
     let windowY = 0.3 + 0.9 * Math.random();
@@ -291,10 +297,16 @@ class ShapeNodeFunctions {
     // if(s.depth > 1) {
     //   return new Array<ShapeNode>(s);
     // }
-  //  return ShapeNodeFunctions.divideUniform(s, 3,2,4);
+    //  return ShapeNodeFunctions.divideUniform(s, 3,2,4);
 
 
     return ShapeNodeFunctions.divideUniform(s, xDiv,yDiv,zDiv);
+  }
+
+  static divBottomFloor(s : ShapeNode) : Array<ShapeNode> {
+    console.log("divbottomfloor");
+    s.symbol = "door";
+    return ShapeNodeFunctions.divRandomSize(s, 0.7, 0.05, s.scale[1] + 10, 0.0);
   }
 
   static divHalves(s : ShapeNode) : Array<ShapeNode> {
@@ -303,33 +315,46 @@ class ShapeNodeFunctions {
     return ShapeNodeFunctions.divideUniform(s, 2,2,2);
   }
 
+  static divRandomSize(s : ShapeNode, xMin : number, xVar : number, yMin : number, yVar : number) : Array<ShapeNode> {
+    for(let i = 0; i < s.children.length; i++) {
+      let windowX = xMin + xVar * Math.random();
+      let windowY = yMin + yVar * Math.random();  
+
+      //check which face of the cube this is on (x or z)
+      if(s.children[i].position[0] == 0) {
+        // xy plane
+        let xDiv = Math.ceil(s.scale[0] / windowX);
+        let yDiv = Math.ceil(s.scale[1] / windowY);  
+        ShapeNodeFunctions.dividePlane(s.children[i], xDiv, yDiv);
+      } else {
+        // yz plane
+        let xDiv = Math.ceil(s.scale[2] / windowX);
+        let yDiv = Math.ceil(s.scale[1] / windowY);  
+        ShapeNodeFunctions.dividePlane(s.children[i], xDiv, yDiv);
+      }
+    }
+    return new Array<ShapeNode>(s);
+
+  }
 
   static divHalvePlane(s : ShapeNode) : Array<ShapeNode> {
-    console.log("divHalves");
+    console.log("divHalvePlane");
     s.symbol = 'subdiv';
 
-    let windowX = 0.5 + 0.4 * Math.random();
-    let windowY = 0.5 + 0.4 * Math.random();
-
-    let xDiv = Math.ceil(s.scale[0] / windowX);
-    let yDiv = Math.ceil(s.scale[2] / windowY);
-
-    return ShapeNodeFunctions.dividePlane(s, xDiv,yDiv);
+    return ShapeNodeFunctions.divRandomSize(s, 0.4, 0.1, 0.4, 0.1);
   }
 
 
-  static dividePlane(s : ShapeNode, xDivs : number, yDivs : number) : Array<ShapeNode> {
+  static dividePlane(s : ShapeNode, xDivs : number, yDivs : number) {
     console.log("DIVIDE PLANE");  
     //plane is originally in xz plane
     s.depth += 1;
-    let res = new Array<ShapeNode>();
-
+    s.meshname = '';
     let d = vec3.fromValues(1 / xDivs, 1, 1 / yDivs);
     let minCorner = vec3.fromValues(-0.5 + d[0] * 0.5, 0, -0.5 + d[2] * 0.5);
     for(let i = 0; i < xDivs; i++) {
       for(let j = 0; j < yDivs; j++) {
         let dup = new ShapeNode();
-        //dup.copyshallow(s);
         dup.meshname = "plane";
         vec3.copy(dup.scale, d);
         vec3.add(dup.position, minCorner, vec3.fromValues(d[0] * i, 0, d[2] * j));
@@ -337,11 +362,6 @@ class ShapeNodeFunctions {
         s.meshname = '';
       }
     }
-
-    res.push(s);
-    return res;
-
-
   }
 
   static divideUniform(s : ShapeNode, xDivs : number, yDivs : number, zDivs :number) : Array<ShapeNode> {
@@ -388,28 +408,44 @@ class ShapeNodeFunctions {
 
   }
 
-  static scatterWindows(s : ShapeNode) : Array<ShapeNode> {
+  static scatterWindow1(s : ShapeNode) : Array<ShapeNode> {
+    return ShapeNodeFunctions.scatterWindows(s, 'window1');
+  }
+  static uniformWindow1(s : ShapeNode) : Array<ShapeNode> {
+    return ShapeNodeFunctions.uniformWindows(s, 'window1');
+  }
+
+  static scatterWindow2(s : ShapeNode) : Array<ShapeNode> {
+    return ShapeNodeFunctions.scatterWindows(s, 'window2');
+  }
+
+  static scatterWindows(s : ShapeNode, windowName : string) : Array<ShapeNode> {
     console.log("scatterWindows");
     s.depth += 1;
     s.symbol = 'window';
     s.terminal = true;
+
     for (let i = 0; i < s.children.length; i++) {
-      if(i % 2 == 0) {
-        s.children[i].meshname = 'window';
+      let jmod = 1;//fMath.random() > 0.5 ? 2 : 3;
+      for(let j = 0; j < s.children[i].children.length; j++) {
+        if(j % jmod == 0) {
+          s.children[i].children[j].meshname = windowName;
+        }
       }
     }
     return new Array<ShapeNode>(s);
 
   }
 
-  static addWindows(s : ShapeNode) : Array<ShapeNode> {
-  
+  static uniformWindows(s : ShapeNode, windowName : string) : Array<ShapeNode> {
     console.log("addWindows");
     s.depth += 1;
     s.symbol = 'window';
     s.terminal = true;
     for (let i = 0; i < s.children.length; i++) {
-      s.children[i].meshname = 'window';
+      for(let j = 0; j < s.children[i].children.length; j++) {
+        s.children[i].children[j].meshname = windowName;
+      }
     }
     return new Array<ShapeNode>(s);
   }
@@ -423,6 +459,42 @@ class ShapeNodeFunctions {
       s.symbol = "structure"
     }
     return ShapeNodeFunctions.splitAlong(s, 0.7, 0);
+  }
+
+  static door1(s : ShapeNode) : Array<ShapeNode> {
+    return ShapeNodeFunctions.addDoor(s, 'door1');
+  }
+
+  static door2(s : ShapeNode) : Array<ShapeNode> {
+    return ShapeNodeFunctions.addDoor(s, 'door2');
+  }
+
+
+  static door3(s : ShapeNode) : Array<ShapeNode> {
+    return ShapeNodeFunctions.addDoor(s, 'door3');
+  }
+
+  static door4(s : ShapeNode) : Array<ShapeNode> {
+    return ShapeNodeFunctions.addDoor(s, 'door4');
+  }
+
+  static door5(s : ShapeNode) : Array<ShapeNode> {
+    return ShapeNodeFunctions.addDoor(s, 'door5');
+  }
+
+  static addDoor(s : ShapeNode, doorName : string) : Array<ShapeNode> {
+    console.log("addDoor");
+    s.depth += 1;
+    s.symbol = 'door';
+    s.terminal = true;
+    //s.meshname = 'door1';
+    for (let i = 0; i < s.children.length; i++) {
+      let randInd = Math.floor(Math.random() * s.children[i].children.length);
+      s.children[i].children[randInd].meshname = doorName;
+    }
+    
+    return new Array<ShapeNode>(s);
+
   }
 
   
@@ -467,10 +539,9 @@ class ShapeGrammar  {
     this.fillRoofTypeList();
     this.fillRoofDecorationList();
     this.fillDList();
-
-    this.fillEList();
     this.fillFList();
-
+    this.fillEntranceList();
+    this.fillDoorList();
 
   }
 
@@ -506,7 +577,7 @@ refreshGrammar() {
         let zs = Math.random() * 3;
     
         vec3.add(s.scale, vec3.fromValues(xs,ys,zs), s.scale);
-        
+        //s.rotation[1] = 30 * Math.random();
         s.position[1] = s.scale[1] * 0.5; 
         this.shapes.push(s);    
       }
@@ -517,43 +588,34 @@ refreshGrammar() {
     this.meshNames = new Map<string, Mesh>();
     OBJ.downloadMeshes({
       'cube': './geo/cube.obj',
-      'window': './geo/windowplane.obj',
+      'window1': './geo/windowplane.obj',
       'plane': './geo/plane.obj',
       'roof1': './geo/bevelroof.obj',
       'roof2': './geo/slantroof.obj',
       'roof3': './geo/outroof.obj',
-      'watertower': './geo/watertower.obj'
+      'watertower': './geo/watertower.obj',
+      'window2': './geo/bigwindow.obj',
+      'door1': './geo/door1.obj',
+      'door2': './geo/door2.obj',
+      'door3': './geo/door3.obj',
+      'door4': './geo/door4.obj',
+      'door5': './geo/door5.obj'
+
+
 
     }, (meshes: any) => {
-      let cube_mesh = new Mesh('/geo/cube.obj');
-      cube_mesh.loadMesh(meshes.cube);
-      let window_mesh = new Mesh('/geo/window.obj');
-      window_mesh.loadMesh(meshes.window);
-      let plane_mesh = new Mesh('/geo/plane.obj');
-      plane_mesh.loadMesh(meshes.plane);
-      let roof1_mesh = new Mesh('/geo/plane.obj');
-      roof1_mesh.loadMesh(meshes.roof1);
-      let roof2_mesh = new Mesh('/geo/plane.obj');
-      roof2_mesh.loadMesh(meshes.roof2);
-      let roof3_mesh = new Mesh('/geo/plane.obj');
-      roof3_mesh.loadMesh(meshes.roof3);
-      let watertower_mesh = new Mesh('/geo/plane.obj');
-      watertower_mesh.loadMesh(meshes.watertower);
 
-      this.meshNames.set("cube", cube_mesh);
-      this.meshNames.set("window", window_mesh);
-      this.meshNames.set("plane", plane_mesh);
-      this.meshNames.set("roof1", roof1_mesh);
-      this.meshNames.set("roof2", roof2_mesh);
-      this.meshNames.set("roof3", roof2_mesh);
-      this.meshNames.set("watertower", watertower_mesh);
+      for (let item in meshes) {
+        console.log("Item" + item.toString());
+        let mesh = new Mesh('/geo/cube.obj');
+        mesh.loadMesh(meshes[item]);
+        this.meshNames.set(item.toString(), mesh);
 
-      //this.loadMesh(meshes.mesh);
+      }
       this.expandGrammar();
       this.loadMeshes();
       this.createAll();
     
-      //console.log()
     });
   }
 
@@ -570,7 +632,7 @@ refreshGrammar() {
   fillBList() {
     //structure -> levels structure, roof and ceiling
     this.symbolsToRules.set("structure", new Array<FreqPair>());
-    this.symbolsToRules.get("structure").push(new FreqPair(0.3, ShapeNodeFunctions.entranceLevelsRoof));
+    this.symbolsToRules.get("structure").push(new FreqPair(1.0, ShapeNodeFunctions.entranceLevelsRoof));
   }
 
 
@@ -600,25 +662,38 @@ refreshGrammar() {
   }
 
 
-  fillEList() {
-    //levels -> planar facades
-    this.symbolsToRules.set("level", new Array<FreqPair>());
-
-   // this.symbolsToRules.get("e").push(new FreqPair(0.3, ShapeNodeFunctions.divBySize));
-    this.symbolsToRules.get("level").push(new FreqPair(0.3, ShapeNodeFunctions.replaceCubeWithPlanes));
-  }
-
   fillDList() {
     //planar facades -> subdivisions
-    this.symbolsToRules.set("plane", new Array<FreqPair>());
-    this.symbolsToRules.get("plane").push(new FreqPair(0.3, ShapeNodeFunctions.divHalvePlane));
+    this.symbolsToRules.set("level", new Array<FreqPair>());
+    this.symbolsToRules.get("level").push(new FreqPair(0.3, ShapeNodeFunctions.divHalvePlane));
   }
 
   fillFList() {
     //subdivisions -> windows
     this.symbolsToRules.set("subdiv", new Array<FreqPair>());
-   this.symbolsToRules.get("subdiv").push(new FreqPair(0.3, ShapeNodeFunctions.addWindows));
-   this.symbolsToRules.get("subdiv").push(new FreqPair(0.3, ShapeNodeFunctions.scatterWindows));
+   this.symbolsToRules.get("subdiv").push(new FreqPair(0.3, ShapeNodeFunctions.uniformWindow1));
+   this.symbolsToRules.get("subdiv").push(new FreqPair(0.3, ShapeNodeFunctions.scatterWindow1));
+   this.symbolsToRules.get("subdiv").push(new FreqPair(0.3, ShapeNodeFunctions.scatterWindow2));
+
+
+  }
+
+
+  fillEntranceList() {
+    //subdivisions -> windows
+    this.symbolsToRules.set("entrance", new Array<FreqPair>());
+    this.symbolsToRules.get("entrance").push(new FreqPair(0.3, ShapeNodeFunctions.divBottomFloor));
+
+  }
+
+  fillDoorList() {
+    //subdivisions -> windows
+    this.symbolsToRules.set("door", new Array<FreqPair>());
+ this.symbolsToRules.get("door").push(new FreqPair(0.2, ShapeNodeFunctions.door1));
+    this.symbolsToRules.get("door").push(new FreqPair(0.2, ShapeNodeFunctions.door2));
+    this.symbolsToRules.get("door").push(new FreqPair(0.2, ShapeNodeFunctions.door3));
+    this.symbolsToRules.get("door").push(new FreqPair(0.2, ShapeNodeFunctions.door4));
+    this.symbolsToRules.get("door").push(new FreqPair(0.2, ShapeNodeFunctions.door5));
 
   }
 
@@ -637,12 +712,8 @@ refreshGrammar() {
     let curr = 0;
     for(let i = 0; i < pairs.length; i++) {
       curr += pairs[i].freq;
-      if(i == pairs.length - 1) {
+      if(rand < curr || i == pairs.length - 1) {
         return pairs[i].rule(s);
-      }
-      if(rand < curr) {
-        return pairs[i].rule(s);
-
       }
     }
     res.push(s)
@@ -666,7 +737,11 @@ refreshGrammar() {
           expanded.push(previous[i]);
         }
     }
+    console.log(expanded);
+
   }
+
+
   this.shapes = expanded;
   }
 
@@ -692,11 +767,11 @@ refreshGrammar() {
       }
 
       if(this.meshNames.has(shapeNodes[i].meshname)) {
-        console.log("now loading mesh: " + shapeNodes[i].meshname)
+        //console.log("now loading mesh: " + shapeNodes[i].meshname)
         this.fullMesh.transformAndAppend(this.meshNames.get(shapeNodes[i].meshname), m.transform, m.m_color);
         this.meshes.push(m);
       } else {
-        console.log("cannot find meshname: " + shapeNodes[i].meshname)
+        //console.log("cannot find meshname: " + shapeNodes[i].meshname)
         m.enabled = false;
       }
 

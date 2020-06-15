@@ -22,6 +22,7 @@ const controls = {
   'Radial Decay': 1.6,
   'Angle': 5,
   'Offset': -0.01,
+  'Smooth Shading': true,
   'Load Scene': loadScene, // A function pointer, essentially
   'Export OBJ': saveFile, // A function pointer, essentially
 
@@ -77,6 +78,7 @@ function main() {
   gui.add(controls, 'iterations', 0, 8).step(1);
   gui.add(controls, 'Grid Size', 1, 10).step(1);
   gui.add(controls, 'Random Color');
+  gui.add(controls, 'Smooth Shading');
   gui.add(controls, 'Load Scene');
   gui.add(controls, 'Export OBJ');
 

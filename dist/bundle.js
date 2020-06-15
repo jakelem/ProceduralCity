@@ -11576,6 +11576,7 @@ const controls = {
     'Radial Decay': 1.6,
     'Angle': 5,
     'Offset': -0.01,
+    'Smooth Shading': true,
     'Load Scene': loadScene,
     'Export OBJ': saveFile,
 };
@@ -11622,6 +11623,7 @@ function main() {
     gui.add(controls, 'iterations', 0, 8).step(1);
     gui.add(controls, 'Grid Size', 1, 10).step(1);
     gui.add(controls, 'Random Color');
+    gui.add(controls, 'Smooth Shading');
     gui.add(controls, 'Load Scene');
     gui.add(controls, 'Export OBJ');
     // get canvas and webgl context
@@ -23812,9 +23814,9 @@ class ShapeNodeFunctions {
         console.log("growYOffsetX");
         s.depth += 1;
         let axis = Math.random() < 0.5 ? 0 : 2;
-        if (s.depth > 1) {
-            s.symbol = "structure";
-        }
+        //if(s.depth > 1) {
+        s.symbol = "structure";
+        //}
         if (s.scale[axis] < 0.9) {
             return new Array(s);
         }
@@ -23831,10 +23833,12 @@ class ShapeNodeFunctions {
         //console.log("dupcliate and offset " + res);
         return res;
     }
-    static replaceCubeWithPlanes(s) {
+    //creates faces of the cube and adds them as children to node s
+    static replaceCubeWithPlanes(s, excludeTop = false) {
         console.log("replacewplanes");
         let res = new Array();
-        s.symbol = "plane";
+        //s.symbol = "plane";
+        s.meshname = "";
         for (let i = 0; i < 3; i++) {
             //i is the axis of rotation
             //translation axis
@@ -23843,34 +23847,35 @@ class ShapeNodeFunctions {
                 ti = (i + 2) % 3;
             }
             for (let j = -1; j <= 1; j += 2) {
+                if ((i == 1 && j == -1) || (i == 1 && excludeTop)) {
+                    continue;
+                }
                 let xyPos = new ShapeNode();
-                xyPos.copyshallow(s);
+                // xyPos.copyshallow(s);
                 xyPos.meshname = "plane";
+                xyPos.position[1] = 0;
                 if (i == 0) {
                     //xy plane
-                    xyPos.rotation[0] = 90 * j;
-                    xyPos.scale[0] = s.scale[0];
-                    xyPos.scale[2] = s.scale[1];
-                    xyPos.position[2] += j * s.scale[2] * 0.5;
+                    xyPos.rotation[0] = 90;
+                    xyPos.position[2] += j * 0.5;
+                    xyPos.scale[1] = 1.0 / s.scale[2] * j;
                 }
                 else if (i == 1) {
                     //xz plane
-                    xyPos.scale[0] = s.scale[0];
-                    xyPos.scale[1] = j;
-                    xyPos.scale[2] = s.scale[2];
-                    xyPos.position[1] += j * s.scale[1] * 0.5;
+                    xyPos.position[1] += j * 0.5;
                 }
                 else {
                     //yz plane
-                    xyPos.rotation[2] = -90 * j;
-                    xyPos.scale[0] = s.scale[1];
-                    xyPos.scale[2] = s.scale[2];
-                    xyPos.position[0] += j * s.scale[0] * 0.5;
+                    xyPos.rotation[0] = 90;
+                    xyPos.rotation[2] = 90;
+                    xyPos.position[0] += j * 0.5;
+                    xyPos.scale[1] = -1.0 / s.scale[0] * j;
                 }
-                res.push(xyPos);
+                s.children.push(xyPos);
             }
         }
-        return res;
+        console.log(res);
+        //return new Array<ShapeNode>(s);
     }
     static decorateRoof(s) {
         console.log("growYOffsetX");
@@ -23894,9 +23899,9 @@ class ShapeNodeFunctions {
     static stackY(s) {
         console.log("growYOffsetX");
         s.depth += 1;
-        if (s.depth > 1) {
-            s.symbol = "structure";
-        }
+        //if(s.depth > 1) {
+        s.symbol = "structure";
+        //}    
         let res = new Array();
         let dup = new ShapeNode();
         dup.copyshallow(s);
@@ -23916,14 +23921,18 @@ class ShapeNodeFunctions {
     }
     static entranceLevelsRoof(s) {
         console.log("entranceLevelsRoof");
-        let res = ShapeNodeFunctions.splitAlongSym(s, 0.2, 1);
-        res[0].symbol = "ground";
+        let roofsize = Math.min(0.6 / s.scale[1], 0.3);
+        s.meshname = '';
+        let res = ShapeNodeFunctions.splitAlongSym(s, roofsize, 1);
+        res[0].symbol = "entrance";
         res[1].symbol = "level";
         res[2].symbol = "roof";
+        ShapeNodeFunctions.replaceCubeWithPlanes(res[0], true);
+        ShapeNodeFunctions.replaceCubeWithPlanes(res[1], true);
         return res;
     }
     static divBySize(s) {
-        console.log("divHalves");
+        console.log("divBySize");
         s.terminal = true;
         let windowX = 0.3 + 0.9 * Math.random();
         let windowY = 0.3 + 0.9 * Math.random();
@@ -23937,31 +23946,51 @@ class ShapeNodeFunctions {
         //  return ShapeNodeFunctions.divideUniform(s, 3,2,4);
         return ShapeNodeFunctions.divideUniform(s, xDiv, yDiv, zDiv);
     }
+    static divBottomFloor(s) {
+        console.log("divbottomfloor");
+        s.symbol = "door";
+        return ShapeNodeFunctions.divRandomSize(s, 0.7, 0.05, s.scale[1] + 10, 0.0);
+    }
     static divHalves(s) {
         console.log("divHalves");
         s.terminal = true;
         return ShapeNodeFunctions.divideUniform(s, 2, 2, 2);
     }
+    static divRandomSize(s, xMin, xVar, yMin, yVar) {
+        for (let i = 0; i < s.children.length; i++) {
+            let windowX = xMin + xVar * Math.random();
+            let windowY = yMin + yVar * Math.random();
+            //check which face of the cube this is on (x or z)
+            if (s.children[i].position[0] == 0) {
+                // xy plane
+                let xDiv = Math.ceil(s.scale[0] / windowX);
+                let yDiv = Math.ceil(s.scale[1] / windowY);
+                ShapeNodeFunctions.dividePlane(s.children[i], xDiv, yDiv);
+            }
+            else {
+                // yz plane
+                let xDiv = Math.ceil(s.scale[2] / windowX);
+                let yDiv = Math.ceil(s.scale[1] / windowY);
+                ShapeNodeFunctions.dividePlane(s.children[i], xDiv, yDiv);
+            }
+        }
+        return new Array(s);
+    }
     static divHalvePlane(s) {
-        console.log("divHalves");
+        console.log("divHalvePlane");
         s.symbol = 'subdiv';
-        let windowX = 0.5 + 0.4 * Math.random();
-        let windowY = 0.5 + 0.4 * Math.random();
-        let xDiv = Math.ceil(s.scale[0] / windowX);
-        let yDiv = Math.ceil(s.scale[2] / windowY);
-        return ShapeNodeFunctions.dividePlane(s, xDiv, yDiv);
+        return ShapeNodeFunctions.divRandomSize(s, 0.4, 0.1, 0.4, 0.1);
     }
     static dividePlane(s, xDivs, yDivs) {
         console.log("DIVIDE PLANE");
         //plane is originally in xz plane
         s.depth += 1;
-        let res = new Array();
+        s.meshname = '';
         let d = __WEBPACK_IMPORTED_MODULE_0_gl_matrix__["b" /* vec3 */].fromValues(1 / xDivs, 1, 1 / yDivs);
         let minCorner = __WEBPACK_IMPORTED_MODULE_0_gl_matrix__["b" /* vec3 */].fromValues(-0.5 + d[0] * 0.5, 0, -0.5 + d[2] * 0.5);
         for (let i = 0; i < xDivs; i++) {
             for (let j = 0; j < yDivs; j++) {
                 let dup = new ShapeNode();
-                //dup.copyshallow(s);
                 dup.meshname = "plane";
                 __WEBPACK_IMPORTED_MODULE_0_gl_matrix__["b" /* vec3 */].copy(dup.scale, d);
                 __WEBPACK_IMPORTED_MODULE_0_gl_matrix__["b" /* vec3 */].add(dup.position, minCorner, __WEBPACK_IMPORTED_MODULE_0_gl_matrix__["b" /* vec3 */].fromValues(d[0] * i, 0, d[2] * j));
@@ -23969,8 +23998,6 @@ class ShapeNodeFunctions {
                 s.meshname = '';
             }
         }
-        res.push(s);
-        return res;
     }
     static divideUniform(s, xDivs, yDivs, zDivs) {
         s.depth += 1;
@@ -24008,25 +24035,39 @@ class ShapeNodeFunctions {
         //console.log("dupcliate and offset " + res);
         return res;
     }
-    static scatterWindows(s) {
+    static scatterWindow1(s) {
+        return ShapeNodeFunctions.scatterWindows(s, 'window1');
+    }
+    static uniformWindow1(s) {
+        return ShapeNodeFunctions.uniformWindows(s, 'window1');
+    }
+    static scatterWindow2(s) {
+        return ShapeNodeFunctions.scatterWindows(s, 'window2');
+    }
+    static scatterWindows(s, windowName) {
         console.log("scatterWindows");
         s.depth += 1;
         s.symbol = 'window';
         s.terminal = true;
         for (let i = 0; i < s.children.length; i++) {
-            if (i % 2 == 0) {
-                s.children[i].meshname = 'window';
+            let jmod = 1; //fMath.random() > 0.5 ? 2 : 3;
+            for (let j = 0; j < s.children[i].children.length; j++) {
+                if (j % jmod == 0) {
+                    s.children[i].children[j].meshname = windowName;
+                }
             }
         }
         return new Array(s);
     }
-    static addWindows(s) {
+    static uniformWindows(s, windowName) {
         console.log("addWindows");
         s.depth += 1;
         s.symbol = 'window';
         s.terminal = true;
         for (let i = 0; i < s.children.length; i++) {
-            s.children[i].meshname = 'window';
+            for (let j = 0; j < s.children[i].children.length; j++) {
+                s.children[i].children[j].meshname = windowName;
+            }
         }
         return new Array(s);
     }
@@ -24037,6 +24078,33 @@ class ShapeNodeFunctions {
             s.symbol = "structure";
         }
         return ShapeNodeFunctions.splitAlong(s, 0.7, 0);
+    }
+    static door1(s) {
+        return ShapeNodeFunctions.addDoor(s, 'door1');
+    }
+    static door2(s) {
+        return ShapeNodeFunctions.addDoor(s, 'door2');
+    }
+    static door3(s) {
+        return ShapeNodeFunctions.addDoor(s, 'door3');
+    }
+    static door4(s) {
+        return ShapeNodeFunctions.addDoor(s, 'door4');
+    }
+    static door5(s) {
+        return ShapeNodeFunctions.addDoor(s, 'door5');
+    }
+    static addDoor(s, doorName) {
+        console.log("addDoor");
+        s.depth += 1;
+        s.symbol = 'door';
+        s.terminal = true;
+        //s.meshname = 'door1';
+        for (let i = 0; i < s.children.length; i++) {
+            let randInd = Math.floor(Math.random() * s.children[i].children.length);
+            s.children[i].children[randInd].meshname = doorName;
+        }
+        return new Array(s);
     }
 }
 class ShapeGrammar {
@@ -24058,8 +24126,9 @@ class ShapeGrammar {
         this.fillRoofTypeList();
         this.fillRoofDecorationList();
         this.fillDList();
-        this.fillEList();
         this.fillFList();
+        this.fillEntranceList();
+        this.fillDoorList();
     }
     refreshGrammar() {
         this.fillAxiom();
@@ -24085,6 +24154,7 @@ class ShapeGrammar {
                 let ys = Math.random() * 5;
                 let zs = Math.random() * 3;
                 __WEBPACK_IMPORTED_MODULE_0_gl_matrix__["b" /* vec3 */].add(s.scale, __WEBPACK_IMPORTED_MODULE_0_gl_matrix__["b" /* vec3 */].fromValues(xs, ys, zs), s.scale);
+                //s.rotation[1] = 30 * Math.random();
                 s.position[1] = s.scale[1] * 0.5;
                 this.shapes.push(s);
             }
@@ -24094,39 +24164,28 @@ class ShapeGrammar {
         this.meshNames = new Map();
         OBJ.downloadMeshes({
             'cube': './geo/cube.obj',
-            'window': './geo/windowplane.obj',
+            'window1': './geo/windowplane.obj',
             'plane': './geo/plane.obj',
             'roof1': './geo/bevelroof.obj',
             'roof2': './geo/slantroof.obj',
             'roof3': './geo/outroof.obj',
-            'watertower': './geo/watertower.obj'
+            'watertower': './geo/watertower.obj',
+            'window2': './geo/bigwindow.obj',
+            'door1': './geo/door1.obj',
+            'door2': './geo/door2.obj',
+            'door3': './geo/door3.obj',
+            'door4': './geo/door4.obj',
+            'door5': './geo/door5.obj'
         }, (meshes) => {
-            let cube_mesh = new __WEBPACK_IMPORTED_MODULE_1__Mesh__["a" /* default */]('/geo/cube.obj');
-            cube_mesh.loadMesh(meshes.cube);
-            let window_mesh = new __WEBPACK_IMPORTED_MODULE_1__Mesh__["a" /* default */]('/geo/window.obj');
-            window_mesh.loadMesh(meshes.window);
-            let plane_mesh = new __WEBPACK_IMPORTED_MODULE_1__Mesh__["a" /* default */]('/geo/plane.obj');
-            plane_mesh.loadMesh(meshes.plane);
-            let roof1_mesh = new __WEBPACK_IMPORTED_MODULE_1__Mesh__["a" /* default */]('/geo/plane.obj');
-            roof1_mesh.loadMesh(meshes.roof1);
-            let roof2_mesh = new __WEBPACK_IMPORTED_MODULE_1__Mesh__["a" /* default */]('/geo/plane.obj');
-            roof2_mesh.loadMesh(meshes.roof2);
-            let roof3_mesh = new __WEBPACK_IMPORTED_MODULE_1__Mesh__["a" /* default */]('/geo/plane.obj');
-            roof3_mesh.loadMesh(meshes.roof3);
-            let watertower_mesh = new __WEBPACK_IMPORTED_MODULE_1__Mesh__["a" /* default */]('/geo/plane.obj');
-            watertower_mesh.loadMesh(meshes.watertower);
-            this.meshNames.set("cube", cube_mesh);
-            this.meshNames.set("window", window_mesh);
-            this.meshNames.set("plane", plane_mesh);
-            this.meshNames.set("roof1", roof1_mesh);
-            this.meshNames.set("roof2", roof2_mesh);
-            this.meshNames.set("roof3", roof2_mesh);
-            this.meshNames.set("watertower", watertower_mesh);
-            //this.loadMesh(meshes.mesh);
+            for (let item in meshes) {
+                console.log("Item" + item.toString());
+                let mesh = new __WEBPACK_IMPORTED_MODULE_1__Mesh__["a" /* default */]('/geo/cube.obj');
+                mesh.loadMesh(meshes[item]);
+                this.meshNames.set(item.toString(), mesh);
+            }
             this.expandGrammar();
             this.loadMeshes();
             this.createAll();
-            //console.log()
         });
     }
     fillAList() {
@@ -24140,7 +24199,7 @@ class ShapeGrammar {
     fillBList() {
         //structure -> levels structure, roof and ceiling
         this.symbolsToRules.set("structure", new Array());
-        this.symbolsToRules.get("structure").push(new FreqPair(0.3, ShapeNodeFunctions.entranceLevelsRoof));
+        this.symbolsToRules.get("structure").push(new FreqPair(1.0, ShapeNodeFunctions.entranceLevelsRoof));
     }
     fillCList() {
         //roofs
@@ -24160,22 +24219,31 @@ class ShapeGrammar {
         this.symbolsToRules.get("roof decor").push(new FreqPair(0.3, ShapeNodeFunctions.roof1));
         this.symbolsToRules.get("roof decor").push(new FreqPair(0.3, ShapeNodeFunctions.roof2));
     }
-    fillEList() {
-        //levels -> planar facades
-        this.symbolsToRules.set("level", new Array());
-        // this.symbolsToRules.get("e").push(new FreqPair(0.3, ShapeNodeFunctions.divBySize));
-        this.symbolsToRules.get("level").push(new FreqPair(0.3, ShapeNodeFunctions.replaceCubeWithPlanes));
-    }
     fillDList() {
         //planar facades -> subdivisions
-        this.symbolsToRules.set("plane", new Array());
-        this.symbolsToRules.get("plane").push(new FreqPair(0.3, ShapeNodeFunctions.divHalvePlane));
+        this.symbolsToRules.set("level", new Array());
+        this.symbolsToRules.get("level").push(new FreqPair(0.3, ShapeNodeFunctions.divHalvePlane));
     }
     fillFList() {
         //subdivisions -> windows
         this.symbolsToRules.set("subdiv", new Array());
-        this.symbolsToRules.get("subdiv").push(new FreqPair(0.3, ShapeNodeFunctions.addWindows));
-        this.symbolsToRules.get("subdiv").push(new FreqPair(0.3, ShapeNodeFunctions.scatterWindows));
+        this.symbolsToRules.get("subdiv").push(new FreqPair(0.3, ShapeNodeFunctions.uniformWindow1));
+        this.symbolsToRules.get("subdiv").push(new FreqPair(0.3, ShapeNodeFunctions.scatterWindow1));
+        this.symbolsToRules.get("subdiv").push(new FreqPair(0.3, ShapeNodeFunctions.scatterWindow2));
+    }
+    fillEntranceList() {
+        //subdivisions -> windows
+        this.symbolsToRules.set("entrance", new Array());
+        this.symbolsToRules.get("entrance").push(new FreqPair(0.3, ShapeNodeFunctions.divBottomFloor));
+    }
+    fillDoorList() {
+        //subdivisions -> windows
+        this.symbolsToRules.set("door", new Array());
+        this.symbolsToRules.get("door").push(new FreqPair(0.2, ShapeNodeFunctions.door1));
+        this.symbolsToRules.get("door").push(new FreqPair(0.2, ShapeNodeFunctions.door2));
+        this.symbolsToRules.get("door").push(new FreqPair(0.2, ShapeNodeFunctions.door3));
+        this.symbolsToRules.get("door").push(new FreqPair(0.2, ShapeNodeFunctions.door4));
+        this.symbolsToRules.get("door").push(new FreqPair(0.2, ShapeNodeFunctions.door5));
     }
     applyRandomRule(s) {
         let res = new Array();
@@ -24189,10 +24257,7 @@ class ShapeGrammar {
         let curr = 0;
         for (let i = 0; i < pairs.length; i++) {
             curr += pairs[i].freq;
-            if (i == pairs.length - 1) {
-                return pairs[i].rule(s);
-            }
-            if (rand < curr) {
+            if (rand < curr || i == pairs.length - 1) {
                 return pairs[i].rule(s);
             }
         }
@@ -24213,6 +24278,7 @@ class ShapeGrammar {
                     expanded.push(previous[i]);
                 }
             }
+            console.log(expanded);
         }
         this.shapes = expanded;
     }
@@ -24232,12 +24298,12 @@ class ShapeGrammar {
                 m.m_color = __WEBPACK_IMPORTED_MODULE_0_gl_matrix__["c" /* vec4 */].fromValues(0.5, 0.8, 0.8, 1.0);
             }
             if (this.meshNames.has(shapeNodes[i].meshname)) {
-                console.log("now loading mesh: " + shapeNodes[i].meshname);
+                //console.log("now loading mesh: " + shapeNodes[i].meshname)
                 this.fullMesh.transformAndAppend(this.meshNames.get(shapeNodes[i].meshname), m.transform, m.m_color);
                 this.meshes.push(m);
             }
             else {
-                console.log("cannot find meshname: " + shapeNodes[i].meshname);
+                //console.log("cannot find meshname: " + shapeNodes[i].meshname)
                 m.enabled = false;
             }
             this.loadMeshesRecursively(shapeNodes[i].children, m.transform);
@@ -24293,7 +24359,7 @@ module.exports = "#version 300 es\n\n//This is a vertex shader. While it is call
 /* 115 */
 /***/ (function(module, exports) {
 
-module.exports = "#version 300 es\n\n// This is a fragment shader. If you've opened this file first, please\n// open and read lambert.vert.glsl before reading on.\n// Unlike the vertex shader, the fragment shader actually does compute\n// the shading of geometry. For every pixel in your program's output\n// screen, the fragment shader is run for every bit of geometry that\n// particular pixel overlaps. By implicitly interpolating the position\n// data passed into the fragment shader by the vertex shader, the fragment shader\n// can compute what color to apply to its pixel based on things like vertex\n// position, light position, and vertex color.\nprecision highp float;\n\nuniform vec4 u_Color; // The color with which to render this instance of geometry.\n\n// These are the interpolated values out of the rasterizer, so you can't know\n// their specific values without knowing the vertices that contributed to them\nin vec4 fs_Nor;\nin vec4 fs_LightVec;\nin vec4 fs_Col;\nin vec4 fs_Pos;\n\nout vec4 out_Col; // This is the final output color that you will see on your\n                  // screen for the pixel that is currently being processed.\n\nvoid main()\n{\n    // Material base color (before shading)\n        vec4 diffuseColor = fs_Col;\n        \n         //diffuseColor = vec4(0.1,1,1,1);\n        // Calculate the diffuse term for Lambert shading\n        float diffuseTerm = dot(normalize(fs_Nor), normalize(fs_LightVec));\n        // Avoid negative lighting values\n        diffuseTerm = clamp(diffuseTerm, 0.0, 1.0);\n\n        float ambientTerm = 0.3;\n\n        float lightIntensity = diffuseTerm + ambientTerm;   //Add a small float value to the color multiplier\n                                                            //to simulate ambient lighting. This ensures that faces that are not\n\n        // Compute final shaded color\n        out_Col = vec4(diffuseColor.rgb * lightIntensity, diffuseColor.a);\n        //out_Col = vec4(fs_Pos.z,fs_Pos.z,fs_Pos.z,1);\n\t//out_Col = diffuseColor;\n}\n"
+module.exports = "#version 300 es\n\n// This is a fragment shader. If you've opened this file first, please\n// open and read lambert.vert.glsl before reading on.\n// Unlike the vertex shader, the fragment shader actually does compute\n// the shading of geometry. For every pixel in your program's output\n// screen, the fragment shader is run for every bit of geometry that\n// particular pixel overlaps. By implicitly interpolating the position\n// data passed into the fragment shader by the vertex shader, the fragment shader\n// can compute what color to apply to its pixel based on things like vertex\n// position, light position, and vertex color.\nprecision highp float;\n\nuniform vec4 u_Color; // The color with which to render this instance of geometry.\n\n// These are the interpolated values out of the rasterizer, so you can't know\n// their specific values without knowing the vertices that contributed to them\nin vec4 fs_Nor;\nin vec4 fs_LightVec;\nin vec4 fs_Col;\nin vec4 fs_Pos;\n\nout vec4 out_Col; // This is the final output color that you will see on your\n                  // screen for the pixel that is currently being processed.\n\nvoid main()\n{\n    // Material base color (before shading)\n        vec4 diffuseColor = fs_Col;\n        \n         //diffuseColor = vec4(0.1,1,1,1);\n        // Calculate the diffuse term for Lambert shading\n        float diffuseTerm = dot(normalize(fs_Nor), normalize(fs_LightVec));\n        // Avoid negative lighting values\n        diffuseTerm = clamp(diffuseTerm, 0.0, 1.0);\n\n        float ambientTerm = 0.3;\n\n        float lightIntensity = diffuseTerm + ambientTerm;   //Add a small float value to the color multiplier\n                                                            //to simulate ambient lighting. This ensures that faces that are not\n\n        // Compute final shaded color\n        out_Col = vec4(diffuseColor.rgb * lightIntensity, diffuseColor.a);\n       // out_Col = vec4(diffuseColor.rgb, diffuseColor.a);\n\n        //out_Col = vec4(fs_Pos.z,fs_Pos.z,fs_Pos.z,1);\n\t//out_Col = diffuseColor;\n}\n"
 
 /***/ }),
 /* 116 */

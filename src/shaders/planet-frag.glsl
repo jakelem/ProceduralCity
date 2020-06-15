@@ -41,6 +41,8 @@ void main()
 
         // Compute final shaded color
         out_Col = vec4(diffuseColor.rgb * lightIntensity, diffuseColor.a);
+       // out_Col = vec4(diffuseColor.rgb, diffuseColor.a);
+
         //out_Col = vec4(fs_Pos.z,fs_Pos.z,fs_Pos.z,1);
 	//out_Col = diffuseColor;
 }
