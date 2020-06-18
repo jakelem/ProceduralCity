@@ -82,7 +82,7 @@ createTexture() {
                 new Uint8Array([0, 0, 255, 255]));
   // Asynchronously load an image
   var image = new Image();
-  image.src = "../textures/textures.png";
+  image.src = "./textures/textures.png";
   image.crossOrigin = "anonymous";
 
   console.log(image.src);

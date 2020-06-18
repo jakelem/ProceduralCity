@@ -14,7 +14,7 @@ import Orchids from './geometry/Orchids';
 // This will be referred to by dat.GUI's functions that add GUI elements.
 const controls = {
   tesselations: 5,
-  iterations: 6,
+  iterations: 8,
   'Radius': 0.3,
   'Height': 0.3,
   'Grid Size': 1,
