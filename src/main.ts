@@ -14,10 +14,10 @@ import Orchids from './geometry/Orchids';
 // This will be referred to by dat.GUI's functions that add GUI elements.
 const controls = {
   tesselations: 5,
-  iterations: 5,
+  iterations: 6,
   'Radius': 0.3,
   'Height': 0.3,
-  'Grid Size': 2,
+  'Grid Size': 1,
   'Random Color': false,
   'Radial Decay': 1.6,
   'Angle': 5,
@@ -38,11 +38,16 @@ let orchid : Orchids;
 function loadObjs() {
 }
 
+const camera = new Camera(vec3.fromValues(0, 2, -3), vec3.fromValues(0, 2, 20));
+
+
 function loadScene() {
   background_meshes = new Array<Mesh>();
   grammar = new ShapeGrammar();
   grammar.iterations = controls.iterations;
   grammar.gridDivs = controls["Grid Size"];
+  camera.setTarget(vec3.fromValues(0, 2, -3), vec3.fromValues(0, 2, grammar.gridDivs * grammar.cell_size * 0.75));
+
   grammar.randomColor = controls["Random Color"];
   grammar.refreshGrammar();
   //console.log("SETNECE " + l_system.expandedSentence);
@@ -96,7 +101,6 @@ function main() {
   // Initial call to load scene
   loadScene();
 
-  const camera = new Camera(vec3.fromValues(-5, 5, 0), vec3.fromValues(0, 0, 0));
 
   const renderer = new OpenGLRenderer(canvas);
   renderer.setClearColor(225/255, 240/255, 246/255, 1);
@@ -107,6 +111,7 @@ function main() {
     new Shader(gl.FRAGMENT_SHADER, require('./shaders/lambert-frag.glsl')),
   ]);
 
+  lambert.createTexture();
 
   const planet = new ShaderProgram([
     new Shader(gl.VERTEX_SHADER, require('./shaders/planet-vert.glsl')),
@@ -144,7 +149,7 @@ function main() {
     // );}
 
     if(grammar.fullMesh !== undefined) {
-      renderer.render(camera, planet, [
+      renderer.render(camera, lambert, [
         grammar.fullMesh,
       ]);
     }

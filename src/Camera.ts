@@ -30,6 +30,16 @@ class Camera {
     this.aspectRatio = aspectRatio;
   }
 
+  setTarget(position: vec3, target: vec3) {
+    this.controls = CameraControls(document.getElementById('canvas'), {
+      eye: position,
+      center: target,
+    });
+    vec3.add(this.target, this.position, this.direction);
+    mat4.lookAt(this.viewMatrix, this.controls.eye, this.controls.center, this.controls.up);
+
+  }
+
   updateProjectionMatrix() {
     mat4.perspective(this.projectionMatrix, this.fovy, this.aspectRatio, this.near, this.far);
   }

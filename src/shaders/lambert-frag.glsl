@@ -18,7 +18,9 @@ uniform vec4 u_Color; // The color with which to render this instance of geometr
 in vec4 fs_Nor;
 in vec4 fs_LightVec;
 in vec4 fs_Col;
+in vec2 fs_UV;
 
+uniform sampler2D u_Texture;
 out vec4 out_Col; // This is the final output color that you will see on your
                   // screen for the pixel that is currently being processed.
 
@@ -26,6 +28,8 @@ void main()
 {
     // Material base color (before shading)
         vec4 diffuseColor = u_Color;
+    	diffuseColor = texture(u_Texture, fs_UV);
+    	//diffuseColor = vec4(fs_UV, 1,1);
 
         // Calculate the diffuse term for Lambert shading
         float diffuseTerm = dot(normalize(fs_Nor), normalize(fs_LightVec));
@@ -40,4 +44,6 @@ void main()
 
         // Compute final shaded color
         out_Col = vec4(diffuseColor.rgb * lightIntensity, diffuseColor.a);
+       // out_Col = vec4(normalize(fs_Nor.xyz), 1);
+
 }

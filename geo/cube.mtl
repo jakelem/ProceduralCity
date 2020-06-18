@@ -1,16 +1,17 @@
-newmtl lambert2SG
+newmtl door5:initialShadingGroup
 illum 4
 Kd 0.50 0.50 0.50
 Ka 0.00 0.00 0.00
 Tf 1.00 1.00 1.00
 Ni 1.00
-newmtl window:initialShadingGroup
+newmtl door5:lambert1SG
 illum 4
-Kd 0.50 0.27 0.27
+Kd 0.00 0.00 0.00
 Ka 0.00 0.00 0.00
 Tf 1.00 1.00 1.00
+map_Kd bricks.jpg
 Ni 1.00
-newmtl window:lambert3SG
+newmtl initialShadingGroup
 illum 4
 Kd 0.50 0.50 0.50
 Ka 0.00 0.00 0.00
