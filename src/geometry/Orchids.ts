@@ -3,24 +3,8 @@ import Drawable from '../rendering/gl/Drawable';
 import {gl} from '../globals';
 import Mesh from './Mesh';
 import LSystem from './LSystem';
-class Turtle {
-  position: vec3;
-  orientation: vec3;
-  depth : number;
+import Turtle from './Turtle';
 
-  constructor() {
-    this.position = vec3.fromValues(0,0,0);
-    this.orientation = vec3.fromValues(0,0,0);
-    this.depth = 1;
-
-  }
-
-  copyshallow(t : Turtle) {
-    vec3.copy(this.position, t.position);
-    vec3.copy(this.orientation, t.orientation);
-    this.depth = t.depth;
-  }
-}
 
 
 class Orchids extends LSystem  {

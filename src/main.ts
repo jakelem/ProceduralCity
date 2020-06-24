@@ -8,13 +8,18 @@ import Camera from './Camera';
 import {setGL} from './globals';
 import ShaderProgram, {Shader} from './rendering/gl/ShaderProgram';
 import Mesh from './geometry/Mesh';
+import Roads from './geometry/Roads';
+
 import ShapeGrammar from './geometry/ShapeGrammar';
 import Orchids from './geometry/Orchids';
+
+import {HalfEdgeMesh} from './geometry/HalfEdge';
+
 // Define an object with application parameters and button callbacks
 // This will be referred to by dat.GUI's functions that add GUI elements.
 const controls = {
   tesselations: 5,
-  iterations: 8,
+  iterations: 0,
   'Radius': 0.3,
   'Height': 0.3,
   'Grid Size': 1,
@@ -33,6 +38,9 @@ let square: Square;
 let m_mesh: Mesh;
 let grammar: ShapeGrammar;
 let background_meshes : Array<Mesh>;
+let m_he_mesh : HalfEdgeMesh;
+
+let m_roads: Roads;
 
 let orchid : Orchids;
 function loadObjs() {
@@ -46,11 +54,16 @@ function loadScene() {
   grammar = new ShapeGrammar();
   grammar.iterations = controls.iterations;
   grammar.gridDivs = controls["Grid Size"];
-  camera.setTarget(vec3.fromValues(0, 2, -3), vec3.fromValues(0, 2, grammar.gridDivs * grammar.cell_size * 0.75));
+  //camera.setTarget(vec3.fromValues(0, 2, -3), vec3.fromValues(0, 2, grammar.gridDivs * grammar.cell_size * 0.75));
+  camera.setTarget(vec3.fromValues(0, 5, 0), vec3.fromValues(0, 0, 0));
 
   grammar.randomColor = controls["Random Color"];
   grammar.refreshGrammar();
   //console.log("SETNECE " + l_system.expandedSentence);
+  //m_he_mesh = new HalfEdgeMesh();
+  //m_he_mesh.createPlane();
+  //m_he_mesh.loadMesh();
+  //m_he_mesh.create();
 
   icosphere = new Icosphere(vec3.fromValues(0, 0, 0), 1, controls.tesselations);
   //icosphere.create();
@@ -58,6 +71,13 @@ function loadScene() {
   //m_mesh.create();
   //m_mesh.center = vec4.fromValues(0, 1, 2, 1);
   square = new Square(vec3.fromValues(0, 0, 0));
+  m_roads = new Roads()
+  m_roads.expandAxiom();
+  m_roads.moveTurtle();
+  m_roads.fillMesh();
+
+  m_roads.createAll();
+  console.log("m_roads" + m_roads.fullMesh.indices)
 
   square.create();
 }
@@ -136,7 +156,12 @@ function main() {
     ]);
     renderer.render(camera, lambert, [
       //icosphere,
-      m_mesh,
+      //m_mesh,
+    ]);
+
+    renderer.render(camera, planet, [
+      //icosphere,
+      //m_roads.fullMesh
     ]);
 
     time += 1;
@@ -148,11 +173,11 @@ function main() {
     //   ]
     // );}
 
-    if(grammar.fullMesh !== undefined) {
-      renderer.render(camera, lambert, [
-        grammar.fullMesh,
-      ]);
-    }
+    // if(grammar.fullMesh !== undefined) {
+    //   renderer.render(camera, lambert, [
+    //     grammar.fullMesh,
+    //   ]);
+    // }
 
 
     let ts = 0.01;

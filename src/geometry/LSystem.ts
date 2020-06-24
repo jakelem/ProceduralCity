@@ -2,24 +2,8 @@ import {vec3, vec4, mat4} from 'gl-matrix';
 import Drawable from '../rendering/gl/Drawable';
 import {gl} from '../globals';
 import Mesh from './Mesh';
-class Turtle {
-  position: vec3;
-  orientation: vec3;
-  depth : number;
-
-  constructor() {
-    this.position = vec3.fromValues(0,0,0);
-    this.orientation = vec3.fromValues(0,0,0);
-    this.depth = 2;
-
-  }
-
-  copyshallow(t : Turtle) {
-    vec3.copy(this.position, t.position);
-    vec3.copy(this.orientation, t.orientation);
-    this.depth = t.depth;
-  }
-}
+import Turtle from './Turtle';
+var OBJ = require('webgl-obj-loader') ;
 
 
 class LSystem  {
@@ -37,11 +21,13 @@ class LSystem  {
   height : number;
   offset : number;
   curvature : number;
-
+  smoothshading : boolean;
 
   turtleStack : Array<Turtle>;
 
   meshes : Array<Mesh>;
+  fullMesh : Mesh;
+  meshNames : Map<string, Mesh>;
 
   charExpansions : Map<string, string>;
   charToAction : Map<string, ()=> any>;
@@ -52,6 +38,7 @@ class LSystem  {
     this.axiom = "X";
     this.turtleStack = new Array<Turtle>();
     this.meshes = new Array<Mesh>();
+    this.fullMesh = new Mesh("");
     this.iterations = 3;
     this.charExpansions = new Map();
     this.charToAction = new Map();
@@ -63,7 +50,49 @@ class LSystem  {
     this.fillCharToAction();
     this.curvature = 5;
     this.height = 0.2;
+    this.smoothshading = true;
+  }
 
+
+    fillMeshNames() {
+    this.meshNames = new Map<string, Mesh>();
+    OBJ.downloadMeshes({
+      'orchid': './geo/orchid.obj',
+      'stem': './geo/stem.obj',
+      'leaf': './geo/leaf.obj',
+      'petal': './geo/petal.obj',
+
+    }, (meshes: any) => {
+      let orchid = new Mesh('./geo/orchid.obj');
+      orchid.loadMesh(meshes.orchid);
+      let stem = new Mesh('./geo/stem.obj');
+      stem.loadMesh(meshes.stem);
+      let leaf = new Mesh('./geo/leaf.obj');
+      leaf.loadMesh(meshes.leaf);
+      let petal = new Mesh('./geo/petal.obj');
+      petal.loadMesh(meshes.petal);
+
+      this.meshNames.set("orchid", orchid);
+      this.meshNames.set("stem", stem);
+      this.meshNames.set("leaf", leaf);
+      this.meshNames.set("petal", petal);
+
+      //this.loadMesh(meshes.mesh);
+      this.expandAxiom();
+      this.moveTurtle();
+      this.createAll();
+    
+      //console.log()
+    });
+  }
+
+  setAxiom() {
+    this.axiom = "X";
+
+  }
+  refreshSystem() {
+    this.setAxiom();
+    this.fillMeshNames();
   }
 
   fillCharToAction() {
@@ -81,7 +110,6 @@ class LSystem  {
     });
 
 
-
     this.charToAction.set('[', () => {
       this.pushTurtle();
     });
@@ -93,7 +121,7 @@ class LSystem  {
 
   advanceTurtle() {
     let mesh = new Mesh('/geo/feather.obj', vec3.clone(this.currTurtle.position), vec3.fromValues(1,1,1), vec3.clone(this.currTurtle.orientation))
-    this.meshes.push(mesh);
+   // this.fullMesh.transformAndAppend(this.meshNames.get("stem"), mesh.transform, mesh.m_color);
 
     let rotMat = mat4.create();
     mat4.rotateX(rotMat, rotMat, this.currTurtle.orientation[0] * Math.PI / 180)
@@ -143,7 +171,6 @@ class LSystem  {
 
   pushTurtle() {
     this.turtleStack.push(this.currTurtle);
-
     let prevTurtle = this.currTurtle;
     this.currTurtle = new Turtle();
     this.currTurtle.copyshallow(prevTurtle);
@@ -185,9 +212,10 @@ class LSystem  {
   }
 
   createAll() {
-    for(let mesh of this.meshes) {
-      mesh.load();
-    }
+    //console.log("creating all");
+    this.fullMesh.create();
+    //console.log(this.fullMesh);
+
   }
 
   

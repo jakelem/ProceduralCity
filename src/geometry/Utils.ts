@@ -2,6 +2,29 @@ import {vec2, vec3, vec4, mat4} from 'gl-matrix';
 
 
 class Utils {
+    static xz(v: any) {
+        return vec2.fromValues(v[0], v[2])
+    }
+
+    static vec3ToVec4(v: vec3, w : number) {
+        return vec4.fromValues(v[0],v[1], v[2],w)
+    }
+
+
+    static crossVec2(v : vec2, w : vec2) {
+        return v[0] * w[1] - v[1] * w[0]
+    }
+
+    static radiansToDegrees(rad : number) {
+        return rad * 180 / Math.PI;
+    }
+    static randomColor() {
+        let r = Math.random();
+        let g = Math.random();
+        let b = Math.random();
+        return vec4.fromValues(r, g, b, 1);
+    }
+
     static randomIntRange(min : number, max : number) {
         return Math.floor(Utils.randomFloatRange(min, max));
     }

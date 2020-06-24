@@ -54,7 +54,6 @@ class Mesh extends Drawable {
     this.enabled = true;
     this.maxIdx = -1;
     this.getOverallTransformation();
-
   }
   
   getOverallTransformation() {
