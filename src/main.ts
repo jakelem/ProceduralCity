@@ -8,7 +8,7 @@ import Camera from './Camera';
 import {setGL} from './globals';
 import ShaderProgram, {Shader} from './rendering/gl/ShaderProgram';
 import Mesh from './geometry/Mesh';
-import Roads from './geometry/Roads';
+import {Roads} from './geometry/Roads';
 
 import ShapeGrammar from './geometry/ShapeGrammar';
 import Orchids from './geometry/Orchids';
@@ -71,13 +71,13 @@ function loadScene() {
   //m_mesh.create();
   //m_mesh.center = vec4.fromValues(0, 1, 2, 1);
   square = new Square(vec3.fromValues(0, 0, 0));
+  
   m_roads = new Roads()
   m_roads.expandAxiom();
-  m_roads.moveTurtle();
+  m_roads.expandSegments();
   m_roads.fillMesh();
 
-  m_roads.createAll();
-  console.log("m_roads" + m_roads.fullMesh.indices)
+ // grammar.m_roads.createAll();
 
   square.create();
 }
@@ -161,7 +161,7 @@ function main() {
 
     renderer.render(camera, planet, [
       //icosphere,
-      //m_roads.fullMesh
+      grammar.m_roads.fullMesh
     ]);
 
     time += 1;
@@ -173,11 +173,11 @@ function main() {
     //   ]
     // );}
 
-    // if(grammar.fullMesh !== undefined) {
-    //   renderer.render(camera, lambert, [
-    //     grammar.fullMesh,
-    //   ]);
-    // }
+    if(grammar.fullMesh !== undefined) {
+      renderer.render(camera, lambert, [
+        grammar.fullMesh,
+      ]);
+    }
 
 
     let ts = 0.01;

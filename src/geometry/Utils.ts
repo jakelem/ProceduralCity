@@ -118,12 +118,6 @@ class Utils {
         gp = vec2.fromValues(Math.abs(gp[0]), Math.abs(gp[1]));
         let t = vec2.create();
         vec2.subtract(t, vec2.fromValues(1,1), Utils.cubic2(gp));
-
-        console.log("!!SEPP ");
-
-        console.log("!!p " + p);
-        console.log("!!gridPoint " + gp);
-
         let gradient = vec2.create();
         vec2.scaleAndAdd(gradient, vec2.fromValues(-1,-1),Utils.hash2(gridPoint), 2);
 
@@ -131,10 +125,6 @@ class Utils {
         vec2.subtract(diff, p, gridPoint);
 
         let height = vec2.dot(diff, gradient);
-
-        console.log("!!height " + height);
-        console.log("!!t " + t);
-
         return height * t[0] * t[1];
     
     }
@@ -179,14 +169,9 @@ class Utils {
             for(let j = 0; j <= 1; j++) {
                 let gp = vec2.create();
                 vec2.add(gp, f, vec2.fromValues(i,j))
-                console.log("##p in perlin" + p);
-                console.log("#gp in perlin" + gp);
-
                 res += Utils.surflet(p, gp);
             }
         }
-        console.log("#res" + res);
-
         return res;
 
     }

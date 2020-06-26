@@ -4,7 +4,7 @@ import {gl} from '../globals';
 import Mesh from './Mesh';
 import Utils from './Utils';
 import Plane from './Plane';
-
+import {Roads, GraphVertex,BoundingBox2D} from './Roads'
 var OBJ = require('webgl-obj-loader') ;
 
 enum TexCell{
@@ -34,6 +34,7 @@ class ShapeNode {
   maxDepth : number;
   tex_cell : number;
 
+  
   constructor() {
     this.maxDepth = -1;
     this.symbol = "start";
@@ -235,14 +236,11 @@ class ShapeNodeFunctions {
 
 
   static growYOffsetX(s : ShapeNode) : Array<ShapeNode> {
-    console.log("growYOffsetX");
     //console.log("S DEPTH" + s.depth);
 
     let axis = Math.random() < 0.5 ? 0 : 2;
     let bAxis = axis == 0 ? 2 : 0;
     if(s.depth > 1) {
-      console.log("GREATER DEPTH");
-
       s.symbol = "structure"
     }
 
@@ -885,6 +883,7 @@ class ShapeNodeFunctions {
 
 
 class ShapeGrammar  {
+  m_roads : Roads
   axiom : string;
   buffer: ArrayBuffer;
   indices: Uint32Array;
@@ -939,6 +938,12 @@ refreshGrammar() {
 }
 
   fillAxiom() {
+    this.m_roads = new Roads()
+    this.m_roads.expandAxiom();
+    this.m_roads.expandSegments();
+   // this.m_roads.findFaces()
+    this.m_roads.fillMesh();
+    this.m_roads.createAll()
     //ground plane
     let g = new ShapeNode();
     g.meshname = 'cube'
@@ -952,8 +957,9 @@ refreshGrammar() {
 
       g.position = vec3.fromValues(0, -0.05, 0);
       g.position[2] += g.scale[2] * 0.5;
-    this.shapes.push(g);    
+   // this.shapes.push(g);    
 
+    /*
     for(let x = 0; x < this.gridDivs; x++) {
       for(let z = 0; z < this.gridDivs; z++) {
         let xs = Math.random() * 3;
@@ -975,6 +981,37 @@ refreshGrammar() {
           this.shapes.push(s);      
         }
       }
+    }*/
+
+    for(let i = 0; i < this.m_roads.faces.length;i++) {
+      let face = this.m_roads.faces[i]
+        let bb = GraphVertex.boundingBoxFromVerts(face)
+        let pos = bb.getCenter()
+        console.log("CENTER " + pos)
+        let xs = Math.random() * 3;
+        let ys = 0.5 * (Utils.perlin(vec2.fromValues(pos[0] * 1.6, pos[1] * 1.6)) + 1);
+        let zs = Math.random() * 3;
+
+        //ys = 1.0
+          let s = new ShapeNode();
+          s.scale[0] = 0.7
+          s.scale[2] = 0.7
+
+          s.symbol = 'start';
+          s.position = vec3.fromValues(pos[0], 0.5, pos[1]);
+         // vec3.add(s.position, s.position, minCorner);
+          //console.log('YS', ys);
+          
+          //vec3.add(s.scale, vec3.fromValues(xs,0.0,zs), s.scale);
+          ShapeNodeFunctions.scaleAboutMinEnd(s, 1, ys * ys * 9);
+          //s.rotation[1] = 30 * Math.random();
+          //s.position[1] = s.scale[1] * 0.5; 
+          //s.position[2] += g.scale[2] * 0.5;
+
+          this.shapes.push(s);      
+        
+        
+      
     }
   }
 

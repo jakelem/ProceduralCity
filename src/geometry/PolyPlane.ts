@@ -43,6 +43,7 @@ class PolyPlane extends Mesh {
     this.maxIdx = -1;
     this.points = new Array<vec4>()
   }
+  
 
   loadMesh() {
     //console.log("loading cylinder")
