@@ -19,10 +19,10 @@ import {HalfEdgeMesh} from './geometry/HalfEdge';
 // This will be referred to by dat.GUI's functions that add GUI elements.
 const controls = {
   tesselations: 5,
-  iterations: 0,
+  iterations: 8,
   'Radius': 0.3,
   'Height': 0.3,
-  'Grid Size': 1,
+  'Grid Size': 4,
   'Random Color': false,
   'Radial Decay': 1.6,
   'Angle': 5,
@@ -101,7 +101,7 @@ function main() {
   const gui = new DAT.GUI();
   //gui.add(controls, 'tesselations', 0, 8).step(1);
   gui.add(controls, 'iterations', 0, 8).step(1);
-  gui.add(controls, 'Grid Size', 1, 10).step(1);
+  gui.add(controls, 'Grid Size', 5, 20).step(1);
   gui.add(controls, 'Random Color');
   gui.add(controls, 'Smooth Shading');
   gui.add(controls, 'Load Scene');

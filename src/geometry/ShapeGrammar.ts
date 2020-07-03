@@ -1,10 +1,11 @@
-import {vec2, vec3, vec4, mat4} from 'gl-matrix';
+import {vec2, vec3, vec4, mat4, mat3} from 'gl-matrix';
 import Drawable from '../rendering/gl/Drawable';
 import {gl} from '../globals';
 import Mesh from './Mesh';
 import Utils from './Utils';
 import Plane from './Plane';
 import {Roads, GraphVertex,BoundingBox2D} from './Roads'
+import { SSL_OP_SSLEAY_080_CLIENT_DH_BUG } from 'constants';
 var OBJ = require('webgl-obj-loader') ;
 
 enum TexCell{
@@ -12,6 +13,8 @@ enum TexCell{
   FACADE2, 
   FACADE3, 
   FACADE4, 
+  FACADE5, 
+  FACADE6, 
   WINDOW1,
   WINDOW2,
   WINDOW3, 
@@ -33,8 +36,10 @@ class ShapeNode {
   children : Array<ShapeNode>;
   maxDepth : number;
   tex_cell : number;
+  parent : ShapeNode;
+  polyPlaneVerts : Array<vec3>;
 
-  
+  master : any
   constructor() {
     this.maxDepth = -1;
     this.symbol = "start";
@@ -44,9 +49,38 @@ class ShapeNode {
     this.meshname = 'cube';
     this.terminal = false;
     this.depth = 0;
-    this.tex_cell = 2;
-
+    this.tex_cell = 0;
+    this.parent = undefined
+    this.polyPlaneVerts = undefined
+    this.master = undefined
     this.children = new Array<ShapeNode>();
+  }
+
+  getMaster() {
+    if(this.master !== undefined) {
+      return this.master
+    }
+    let currNode = this.parent
+    while(currNode !== undefined) {
+      if(currNode.master !== undefined) {
+        return currNode.master
+      }
+      currNode = currNode.parent
+    }
+
+    return undefined
+
+  }
+
+  approxGlobalScale() {
+    let currNode = this.parent
+    let res = vec3.create()
+    vec3.copy(res,this.scale)
+    while(currNode !== undefined) {
+      vec3.multiply(res, res, currNode.scale)
+      currNode = currNode.parent
+    }
+    return res
   }
 
   copyshallow(t : ShapeNode) {
@@ -57,6 +91,12 @@ class ShapeNode {
     this.symbol = t.symbol;
     this.terminal = t.terminal;
     this.depth = t.depth;
+    this.tex_cell = t.tex_cell
+  }
+
+  addChild(s:ShapeNode) {
+    this.children.push(s)
+    s.parent = this
   }
 }
 
@@ -71,15 +111,125 @@ class FreqPair {
 
 
 class ShapeNodeFunctions {
-  static scaleAboutMinEnd(s : ShapeNode, axis : number, scale : number) {
+  static windowFactor = 16
+
+  static randomDoor() {
+    let r = Math.random()
+
+    if(r < 0.1) {
+      return 'door1'
+    } else if (r < 0.4) {
+      return 'door2'
+    } else if (r < 0.6) {
+      return 'door3'
+    } else if (r < 0.8) {
+      return 'door4'
+    } else {
+      return 'door5'
+    }
+
+  }
+
+  static randomRoofDecor(s:ShapeNode) {
+    let r = Math.random()
+
+    if(r < 0.1) {
+      s.meshname = 'roof1'
+      s.tex_cell = Utils.randomIntRange(TexCell.FACADE1, TexCell.FACADE5 + 1)
+      let ys = 1.2 * Math.random()
+      ShapeNodeFunctions.addScaleAboutMinEnd(s, 1, ys)
+
+      return
+
+    } else if (r < 0.15) {
+      s.meshname = 'roof2'
+      s.tex_cell = Utils.randomIntRange(TexCell.FACADE1, TexCell.FACADE5 + 1)
+      let ys = 1.2 * Math.random()
+      ShapeNodeFunctions.addScaleAboutMinEnd(s, 1, ys)
+
+      return
+
+    } else if (r < 0.17) {
+      ShapeNodeFunctions.spike(s)
+      return
+
+    } else if (r < 0.19) {
+      ShapeNodeFunctions.spire(s)
+      return 
+
+    } else if (r < 0.4) {
+      ShapeNodeFunctions.watertower(s)
+      s.position[1] = 0 
+      return 
+
+    } else if (r < 0.6) {
+      s.meshname = 'cube'
+      s.tex_cell = Utils.randomIntRange(TexCell.FACADE1, TexCell.DOOR2)
+      let ys = 1.2 * Math.random()
+      ShapeNodeFunctions.addScaleAboutMinEnd(s, 1, ys)
+      return
+
+    } else {
+      s.meshname = ''
+
+      return
+    }
+
+  }
+
+  static drawBetweenPoints(s : ShapeNode, p1 : vec3, p2 : vec3) {
+    let dir = vec3.create()    
+    vec3.subtract(dir, p2,p1)
+    vec3.normalize(dir,dir)
+
+    let pos = vec3.create()
+
+    vec3.lerp(pos,p1, p2, 0.5)
+
+    let xaxis = vec3.fromValues(1,0,0)
+    console.log("pos " + pos)
+
+    let xz = vec2.fromValues(dir[0],dir[2])
+    let xax2 = vec2.fromValues(1,0)
+    
+    let p3p2 = vec3.create()
+    vec3.subtract(p3p2, p2, p1)
+    let length = vec3.length(p3p2)
+
+    let o = Math.sign(Utils.crossVec2(xz, xax2))
+    let rot = vec3.angle(xaxis, dir)
+
+    if(o == -1) {
+      rot *= -1
+    }
+
+    s.rotation[1] = Utils.radiansToDegrees(rot);
+    s.position = pos
+    s.scale[0] = length
+
+  }
+
+  static addScaleAboutMinEnd(s : ShapeNode, axis : number, scale : number) {
     let initPos = s.position[axis] - s.scale[axis] * 0.5;
     s.scale[axis] += scale;
     s.position[axis] = initPos + s.scale[axis] * 0.5;
   }
 
-  static scaleAboutMaxEnd(s : ShapeNode, axis : number, scale : number) {
+  static setScaleAboutMinEnd(s : ShapeNode, axis : number, scale : number) {
+    let initPos = s.position[axis] - s.scale[axis] * 0.5;
+    s.scale[axis] = scale;
+    s.position[axis] = initPos + s.scale[axis] * 0.5;
+  }
+
+  static addScaleAboutMaxEnd(s : ShapeNode, axis : number, scale : number) {
     let initPos = s.position[axis] + s.scale[axis] * 0.5;
     s.scale[axis] += scale;
+    s.position[axis] = initPos - s.scale[axis] * 0.5;
+  }
+
+  static setScaleAboutMaxEnd(s : ShapeNode, axis : number, scale : number) {
+    let initPos = s.position[axis] + s.scale[axis] * 0.5;
+    s.scale[axis] = scale;
     s.position[axis] = initPos - s.scale[axis] * 0.5;
   }
 
@@ -172,7 +322,7 @@ class ShapeNodeFunctions {
     let y = Math.random() * 2;
     //let z = Math.random() * 0.7;
 
-    ShapeNodeFunctions.scaleAboutMinEnd(s, 1, y);
+    ShapeNodeFunctions.addScaleAboutMinEnd(s, 1, y);
     return new Array<ShapeNode>(s);
   }
 
@@ -185,7 +335,7 @@ class ShapeNodeFunctions {
 
   static roof2(s : ShapeNode) : Array<ShapeNode> {
     s.meshname = 'roof2';
-    s.tex_cell = Utils.randomIntRange(TexCell.ROOF1, TexCell.ROOF3 + 1);
+   // s.tex_cell = Utils.randomIntRange(TexCell.ROOF1, TexCell.ROOF3 + 1);
 
     return new Array<ShapeNode>(s);
 
@@ -193,8 +343,7 @@ class ShapeNodeFunctions {
 
   static roof3(s : ShapeNode) : Array<ShapeNode> {
     s.meshname = 'roof3';
-    s.tex_cell = Utils.randomIntRange(TexCell.ROOF1, TexCell.ROOF3 + 1);
-
+   // s.tex_cell = Utils.randomIntRange(TexCell.ROOF1, TexCell.ROOF3 + 1);
     return new Array<ShapeNode>(s);
 
   }
@@ -202,12 +351,11 @@ class ShapeNodeFunctions {
   
   static watertower(s : ShapeNode) : Array<ShapeNode> {
     //ensure water tower is not skewed
-    let smin = Math.max(Math.min(s.scale[0], s.scale[2]), 0.5);
-    smin = Utils.clamp(smin, 0.5, 1.0);
-    s.scale = vec3.fromValues(smin, smin, smin);
+   // let smin = Math.max(Math.min(s.scale[0], s.scale[2]), 0.1);
+   // smin = Utils.clamp(smin, 0.1, 0.2);
+  //  s.scale = vec3.fromValues(smin, smin, smin);
     s.meshname = 'watertower';
-    s.tex_cell = Utils.randomIntRange(TexCell.FACADE1, TexCell.ROOF2);
-
+    s.tex_cell = Utils.randomIntRange(TexCell.ROOF1, TexCell.ROOF3 + 1);
     return new Array<ShapeNode>(s);
 
   }
@@ -215,8 +363,8 @@ class ShapeNodeFunctions {
 
   static spire(s : ShapeNode) : Array<ShapeNode> {
     //ensure water tower is not skewed
-    let smin = Math.max(Math.min(s.scale[0], s.scale[2]), 0.5);
-    s.scale = vec3.fromValues(smin, smin, smin);
+   // let smin = Math.max(Math.min(s.scale[0], s.scale[2]), 0.2);
+   // s.scale = vec3.fromValues(smin, smin, smin);
     s.meshname = 'spire';
     s.tex_cell = Utils.randomIntRange(TexCell.FACADE1, TexCell.ROOF2);
     return new Array<ShapeNode>(s);
@@ -226,8 +374,8 @@ class ShapeNodeFunctions {
 
   static spike(s : ShapeNode) : Array<ShapeNode> {
     //ensure water tower is not skewed
-    let smin = Math.max(Math.min(s.scale[0], s.scale[2]), 0.5);
-    s.scale = vec3.fromValues(smin, smin, smin);
+  //  let smin = Math.max(Math.min(s.scale[0], s.scale[2]), 0.2);
+   // s.scale = vec3.fromValues(smin, smin, smin);
     s.meshname = 'spike';
     s.tex_cell = Utils.randomIntRange(TexCell.FACADE1, TexCell.ROOF2);
     return new Array<ShapeNode>(s);
@@ -235,38 +383,42 @@ class ShapeNodeFunctions {
   }
 
 
-  static growYOffsetX(s : ShapeNode) : Array<ShapeNode> {
+  static growYOffsetX(parent : ShapeNode) : Array<ShapeNode> {
     //console.log("S DEPTH" + s.depth);
+    let newChildren = new Array<ShapeNode>()
+    if(parent.depth > 1) {
+      parent.symbol = "structure"
+    }
+    let randMat = Utils.randomIntRange(TexCell.FACADE1, TexCell.DOOR1)
+    for(let i =0 ; i< parent.children.length;i++) {
+        let s = parent.children[i]
+      
+        let axis = Math.random() < 0.5 ? 0 : 2;
+        let bAxis = axis == 0 ? 2 : 0;
 
-    let axis = Math.random() < 0.5 ? 0 : 2;
-    let bAxis = axis == 0 ? 2 : 0;
-    if(s.depth > 1) {
-      s.symbol = "structure"
+
+        if(s.scale[axis] > 0.5) {
+        
+        let randoff = 0.2 + 0.05 * Math.random();
+
+        let res = ShapeNodeFunctions.splitAlong(s, randoff, axis);
+        let dup = res[1];
+        let randy = 0.1 * Math.random() - 0.2;
+        let randb = Math.random();
+        randy =-randy
+          ShapeNodeFunctions.addScaleAboutMinEnd(dup, 1, randy)
+       /// s.tex_cell =randMat
+      ///  dup.tex_cell =randMat
+
+        newChildren.push(dup);
+      }
     }
 
-    if(s.scale[axis] < 0.9) {
-      return new Array<ShapeNode>(s);
+    for(let i = 0; i < newChildren.length; i++) {
+      parent.addChild(newChildren[i])
     }
-    let randoff = 0.3 + 0.4 * Math.random();
-
-    let res = ShapeNodeFunctions.splitAlong(s, randoff, axis);
-    let dup = res[1];
-    let randy = Math.random() - 0.2;
-    let randb = Math.random();
-
-    vec3.add(dup.scale, dup.scale, vec3.fromValues(0,randy,0));
-
-    let bScale = Math.max(-randb, -dup.scale[bAxis] * 0.2);
-
-    ShapeNodeFunctions.scaleAboutMinEnd(dup, bAxis, bScale);
-    //vec3.add(dup.position, dup.position, vec3.fromValues(0.0,0.0,randoff));
-
-    dup.position[1] = dup.scale[1] * 0.5; 
-    s.position[1] = s.scale[1] * 0.5; 
-    res.push(s);
-    res.push(dup);
     //console.log("dupcliate and offset " + res);
-    return res;
+    return new Array<ShapeNode>(parent);
 
   }
 
@@ -274,50 +426,54 @@ class ShapeNodeFunctions {
     return size / s.scale[axis];
   }
 
-  static OffsetYSim(s : ShapeNode) : Array<ShapeNode> {
-    console.log("OffsetYSim");
+  
+  static OffsetYSim(parent : ShapeNode) : Array<ShapeNode> {
+    //console.log("OffsetYSim");
 
-    let axis = Math.random() < 0.5 ? 0 : 2;
-    let sign = Math.random() < 0.5 ? -1 : 1;
+    let newChildren = new Array<ShapeNode>()
+    let randomMat = Utils.randomIntRange(TexCell.FACADE1, TexCell.FACADE5 + 1)
+    if(parent.depth > 1) {
+      parent.symbol = "structure"
+    }
+    for(let i = 0 ; i < parent.children.length; i++) {
+      let s = parent.children[i]
+      let axis = Math.random() < 0.5 ? 0 : 2;
+      let sign = Math.random() < 0.5 ? -1 : 1;
 
-    if(s.depth > 1) {
-      s.symbol = "structure"
+      if(s.scale[axis] > 0.5) {
+        let randoff = 0.1 + 0.3 * Math.random();
+        randoff = ShapeNodeFunctions.fracFromWorldSize(s, 0.9 + 0.1 * Math.random(), axis);
+        randoff = Utils.clamp(randoff, 0.15, 0.2);
+        let res = ShapeNodeFunctions.splitAlongSym(s, randoff, axis);
+        let randy = (Math.random() * 0.2 + 0.1);
+        randy = Utils.clamp(randy, s.scale[1] * 0.1, s.scale[1] * 0.3);
+        randy = -randy;
+        ShapeNodeFunctions.addScaleAboutMinEnd(res[0],1,randy)
+        ShapeNodeFunctions.addScaleAboutMinEnd(res[1],1,0)
+        ShapeNodeFunctions.addScaleAboutMinEnd(res[2],1,randy)
+
+        newChildren.push(res[0])
+        newChildren.push(res[2])
+
+        //res[0].tex_cell = randomMat
+        //res[1].tex_cell = randomMat
+       // res[2].tex_cell = randomMat
+
+      }
     }
 
-    if(s.scale[axis] < 2.1) {
-      return new Array<ShapeNode>(s);
+    for(let i = 0; i < newChildren.length; i++) {
+      parent.addChild(newChildren[i])
     }
-    let randoff = 0.1 + 0.3 * Math.random();
-    randoff = ShapeNodeFunctions.fracFromWorldSize(s, 0.9 + 0.1 * Math.random(), axis);
-    randoff = Utils.clamp(randoff, 0.3, 0.4);
-    let res = ShapeNodeFunctions.splitAlongSym(s, randoff, axis);
-    let dup = res[1];
-    let randy = (Math.random() * 0.9 + 0.3);
-    randy = Utils.clamp(randy, s.scale[1] * 0.1, s.scale[1] * 0.5);
-    randy = sign * randy;
-    vec3.add(res[0].scale, res[0].scale, vec3.fromValues(0,randy,0));
-    vec3.add(res[1].scale, res[1].scale, vec3.fromValues(0,0,0));
-    vec3.add(res[2].scale, res[2].scale, vec3.fromValues(0,randy,0));
 
-    //vec3.add(dup.position, dup.position, vec3.fromValues(0.0,0.0,randoff));
-
-    res[0].position[1] = res[0].scale[1] * 0.5; 
-    res[1].position[1] = res[1].scale[1] * 0.5; 
-    res[2].position[1] = res[2].scale[1] * 0.5; 
-
-    s.position[1] = s.scale[1] * 0.5; 
-    res.push(s);
-    res.push(dup);
-    //console.log("dupcliate and offset " + res);
-    return res;
+    return new Array<ShapeNode>(parent);
 
   }
 
 
   //creates faces of the cube and adds them as children to node s
-  static replaceCubeWithPlanes(s : ShapeNode, excludeTop = false) {
-    console.log("replacewplanes");
-    let res = new Array<ShapeNode>();
+  static replaceCubeWithPlanes(s : ShapeNode, excludeTop = false, res:Array<ShapeNode> = undefined) {
+    //console.log("replacewplanes");
 
     //s.symbol = "plane";
     s.meshname = "";
@@ -334,9 +490,14 @@ class ShapeNodeFunctions {
         }
         let xyPos = new ShapeNode();
         xyPos.meshname = '';
+        xyPos.tex_cell = s.tex_cell
+
         let xyPlane = new ShapeNode();
+        xyPlane.tex_cell = s.tex_cell
+
         xyPlane.meshname = "plane";
-        xyPos.children.push(xyPlane);
+        xyPos.addChild(xyPlane);
+
        // xyPos.copyshallow(s);
         //xyPos.meshname =  "plane";
         xyPos.position[1] = 0;
@@ -349,7 +510,7 @@ class ShapeNodeFunctions {
           xyPos.rotation[2] = 180 * faceRot;
 
           xyPos.position[2] += j * 0.5;
-          xyPos.scale[1] = 1.0 / s.scale[2];
+          xyPos.scale[1] = Math.min(1, 1.0 / s.scale[2]);
 
         } else if (i == 1) {
           //xz plane
@@ -362,14 +523,14 @@ class ShapeNodeFunctions {
           xyPos.rotation[0] = 90;
           xyPos.rotation[2] = 90 + 180 * faceRot;
           xyPos.position[0] += j * 0.5;
-          xyPos.scale[1] = 1.0 / s.scale[0];
+          xyPos.scale[1] = Math.min(1, 1.0 / s.scale[0]);
 
         }
-
-        s.children.push(xyPos);
-
+        s.addChild(xyPos);
+        if(res !== undefined) {
+          res.push(xyPos)
+        }
       }
-      
     }
 
     //console.log(res);
@@ -377,42 +538,54 @@ class ShapeNodeFunctions {
   }
 
   static decorateRoof(s : ShapeNode) : Array<ShapeNode> {
+    let master = s.getMaster()
     console.log("decorateRoof");
     s.symbol = "roof type";
+    s.tex_cell = master['facade1']
     let res = new Array<ShapeNode>();
-    let minCorner = vec3.fromValues(s.position[0] - s.scale[0] * 0.5, 
-      0, s.position[2] - s.scale[2] * 0.5)
 
-    let xDivs = s.scale[0]
-    let zDivs = s.scale[2]
+    let g_scale = s.approxGlobalScale()
 
-    let d = vec3.fromValues(s.scale[0] / xDivs, 1, s.scale[2] / zDivs);
+    let xDivs = Math.floor(g_scale[0] * 20)
+    let zDivs = Math.floor(g_scale[2] * 20)
 
-/*
-    for(let i = 0; i < xDivs; i++) {
-      for(let j = 0; j < zDivs; j++) {
+
+      let dx = 1 / (xDivs)
+      let dz = 1 / (zDivs)
+
+    for(let i = 1; i < xDivs; i++) {
+      for(let j = 1; j < zDivs; j++) {
         let dup = new ShapeNode();
-        dup.copyshallow(s);
-        let randS = Math.random() * 0.2 + 0.5;
+        let minS = Math.min(g_scale[0],g_scale[2]) * Math.min(dx,dz)
+        let randS = Math.random() * minS * 0.2 + minS * 0.8;
         vec3.scale(dup.scale, dup.scale, randS);
-        dup.position[0] = i * d[0] + minCorner[0]
-        dup.position[2] = j * d[2] + minCorner[2]
+         dup.scale[0] /= g_scale[0]
+         dup.scale[1] /= g_scale[1]
 
-        dup.position[1] = s.position[1] + s.scale[1] * 0.5 + dup.scale[1] * 0.5; 
-        dup.symbol = "roof decor";
-        res.push(dup);
+         dup.scale[2] /= g_scale[2]
+
+        // dup.scale[1] = randS / g_scale[1]
+
+        // dup.scale[2] = randS / g_scale[2]
+        dup.position[0] = i * dx - 0.5// + Math.random() * dx * 0.5
+        dup.position[1] = g_scale[1] + dup.scale[1] * 0.5
+        dup.position[2] = j * dz - 0.5// + Math.random() * dz * 0.5
+        ShapeNodeFunctions.randomRoofDecor(dup)
+        dup.symbol = ''
+        //dup.symbol = "roof decor";
+        s.addChild(dup)
+
+            //res.push(dup);
 
       }
-    }*/
+    }
 
-    let dup = new ShapeNode();
-    dup.copyshallow(s);
-    let randS = Math.random() * 0.2 + 0.5;
-    vec3.scale(dup.scale, dup.scale, randS);
-
-    dup.position[1] = s.position[1] + s.scale[1] * 0.5 + dup.scale[1] * 0.5; 
-    dup.symbol = "roof decor";
-    res.push(dup);
+    //dup.copyshallow(s);
+    //let randS = Math.random() * 0.2 + 0.5;
+    //vec3.scale(dup.scale, dup.scale, randS);
+    
+    //dup.position[1] = s.position[1] + s.scale[1] * 0.5 + dup.scale[1] * 0.5; 
+    //res.push(dup);
 
     //let randoff = 0;
     //vec3.add(dup.position, dup.position, vec3.fromValues(0.0,0.0,randoff));
@@ -425,20 +598,27 @@ class ShapeNodeFunctions {
   }
 
   static stackY(s : ShapeNode) : Array<ShapeNode> {
-    console.log("growYOffsetX");
-    console.log("S DEPTH" + s.depth);
+    //console.log("growYOffsetX");
+    //console.log("S DEPTH" + s.depth);
 
     if(s.depth >= 1) {
-
       s.symbol = "structure"
     }
     let res = new Array<ShapeNode>();
     let dup = new ShapeNode();
     dup.copyshallow(s);
-    let randS = Math.random() * 0.2 + 0.1;
+    let randS = Math.random() * 0.4 + 0.5;
+    let randY = Math.random() * 0.1 + 0.1;
+
+    dup.scale[0] *= randS
+    dup.scale[1] = randY
+
+    dup.scale[2] *= randS
+
     vec3.scale(dup.scale, dup.scale, randS);
     //let randoff = 0;
     //vec3.add(dup.position, dup.position, vec3.fromValues(0.0,0.0,randoff));
+    //dup.position[0] -= 0.1
 
     dup.position[1] = s.position[1] + s.scale[1] * 0.5 + dup.scale[1] * 0.5; 
    // s.position[1] = s.scale[1] * 0.5; 
@@ -450,31 +630,41 @@ class ShapeNodeFunctions {
   }
 
 
-  static entranceLevelsRoof(s : ShapeNode) : Array<ShapeNode> {
-    console.log("entranceLevelsRoof");
-    let bottomSize = Math.min(0.3 / s.scale[1], 0.3);
-    s.meshname = '';
-    //s.meshname = 'cube';
-    let res = ShapeNodeFunctions.splitAlong(s, bottomSize, 1);
-    res[0].symbol = "entrance";
-    res[1].symbol = "level";
+  static entranceLevelsRoof(parent : ShapeNode) : Array<ShapeNode> {
+   // console.log("entranceLevelsRoof");
+   let master = parent.getMaster()
+    let initChildrenLength = parent.children.length
+    let nextNodes = new Array<ShapeNode>()
+    for(let i = 0; i < initChildrenLength; i++) {
+      let s = parent.children[i]
+      let bottomSize = Utils.clamp(0.08 / parent.scale[1], 0.05, 0.3);
+      s.meshname = '';
+      //s.meshname = 'cube';
+      let res = ShapeNodeFunctions.splitAlong(s, bottomSize, 1);
+      res[0].symbol = "entrance";
+      res[0].tex_cell = master['facade1']
+      res[1].symbol = "level";
 
-    let roofSize = Math.min(0.03 / s.scale[1], 0.03);
-    res.push(ShapeNodeFunctions.splitAlong(res[1], 1 - roofSize, 1)[1]);
-    res[2].meshname = 'cube'
-     res[2].symbol = "roof";
-    //res[2].meshname = "cube";
-    ShapeNodeFunctions.replaceCubeWithPlanes(res[0], true);
-    ShapeNodeFunctions.replaceCubeWithPlanes(res[1], true);
-   // ShapeNodeFunctions.replaceCubeWithPlanes(res[2], false);
+      let roofSize = Utils.clamp(0.03 / parent.scale[1], 0.03, 0.06);
+      res.push(ShapeNodeFunctions.splitAlong(res[1], 1 - roofSize, 1)[1]);
+      res[2].meshname = 'cube'
+      res[2].symbol = "roof";
+      //res[2].meshname = "cube";
+      ShapeNodeFunctions.replaceCubeWithPlanes(res[0], true);
+      ShapeNodeFunctions.replaceCubeWithPlanes(res[1], true);
+      parent.addChild(res[0])
+      parent.addChild(res[1])
+      parent.addChild(res[2])
 
-    return res;
+    // ShapeNodeFunctions.replaceCubeWithPlanes(res[2], false);
+    }
+    return parent.children;
   }
 
   static divBottomFloor(s : ShapeNode) : Array<ShapeNode> {
-    console.log("divbottomfloor");
+    //console.log("divbottomfloor");
     s.symbol = "door";
-    return ShapeNodeFunctions.divUniformRandomSize(s, 0.7, 0.05, s.scale[1] + 10, 0.0);
+    return ShapeNodeFunctions.divUniformRandomSize(s, 0.1, 0.05, s.scale[1] + 10, 0.0);
   }
 
   //input is shapenode containing planar subdivisions
@@ -534,7 +724,7 @@ class ShapeNodeFunctions {
 
   //takes in plane child
   static dividePlane(s : ShapeNode, xDivs : number, yDivs : number) {
-    console.log("DIVIDE PLANE");  
+    //console.log("DIVIDE PLANE");  
     //plane is originally in xz plane
     let res = new Array<ShapeNode>();
     let d = vec3.fromValues(s.scale[0] / xDivs, 1, s.scale[2] / yDivs);
@@ -561,22 +751,23 @@ class ShapeNodeFunctions {
   }
 
   static divAxis(s : ShapeNode) : Array<ShapeNode> {
+    let g_scale = s.approxGlobalScale()
     for(let i = 0; i < s.children.length; i++) {
       let newChildren = new Array<ShapeNode>();
         //let dups = ShapeNodeFunctions.dividePlaneNonUniform(s.children[i].children[j],3, 0);
         //newChildren = newChildren.concat(dups);
       if(s.children[i].position[0] == 0) {
           // xy plane
-        let div = Math.ceil(s.scale[0] * s.children[i].scale[0] / 0.6);
-        let yDiv = Math.ceil(s.scale[1] * s.children[i].scale[2] / 0.6);  
+        let div = Math.ceil(g_scale[0] * s.children[i].scale[0] * ShapeNodeFunctions.windowFactor);
+        let yDiv = Math.ceil(g_scale[1] * s.children[i].scale[2] * ShapeNodeFunctions.windowFactor);  
 
         ShapeNodeFunctions.dividePlaneNonUniform(s.children[i], div, 0);
         ShapeNodeFunctions.dividePlaneNonUniform(s.children[i], yDiv, 2);
 
       } else {
           // yz plane
-        let div = Math.ceil(s.scale[2] * s.children[i].scale[0] / 0.6);
-        let yDiv = Math.ceil(s.scale[1] * s.children[i].scale[2] / 0.6);  
+        let div = Math.ceil(g_scale[2] * s.children[i].scale[0] * ShapeNodeFunctions.windowFactor);
+        let yDiv = Math.ceil(g_scale[1] * s.children[i].scale[2] * ShapeNodeFunctions.windowFactor);  
 
         ShapeNodeFunctions.dividePlaneNonUniform(s.children[i], div, 0);
         ShapeNodeFunctions.dividePlaneNonUniform(s.children[i], yDiv, 2);
@@ -587,21 +778,26 @@ class ShapeNodeFunctions {
     return new Array<ShapeNode>(s);
   }
 
+
+  //xmin, xvar: minimum size of an x subdivision, range on this min size
+  //ymin, yvar: minimum size of a y subdivision, range on this min size
+
   static divUniformRandomSize(s : ShapeNode, xMin : number, xVar : number, yMin : number, yVar : number) : Array<ShapeNode> {
+    let g_scale = s.approxGlobalScale()
     for(let i = 0; i < s.children.length; i++) {
       let windowX = xMin + xVar * Math.random();
       let windowY = yMin + yVar * Math.random();  
         //check which face of the cube this is on (x or z)
       if(s.children[i].position[0] == 0) {
           // xy plane
-        let xDiv = Math.ceil(s.scale[0] / windowX);
-        let yDiv = Math.ceil(s.scale[1] / windowY);  
+        let xDiv = Math.ceil(g_scale[0] / windowX);
+        let yDiv = Math.ceil(g_scale[1] / windowY);  
         ShapeNodeFunctions.dividePlaneUniform(s.children[i], xDiv, 0);
         ShapeNodeFunctions.dividePlaneUniform(s.children[i], yDiv, 2);
         } else {
           // yz plane
-        let xDiv = Math.ceil(s.scale[2] / windowX);
-        let yDiv = Math.ceil(s.scale[1] / windowY);  
+        let xDiv = Math.ceil(g_scale[2] / windowX);
+        let yDiv = Math.ceil(g_scale[1] / windowY);  
         ShapeNodeFunctions.dividePlaneUniform(s.children[i], xDiv, 0);
         ShapeNodeFunctions.dividePlaneUniform(s.children[i], yDiv, 2);
     }
@@ -614,7 +810,7 @@ class ShapeNodeFunctions {
     //console.log("divHalvePlane");
     s.symbol = 'subdivB';
 
-    return ShapeNodeFunctions.divUniformRandomSize(s, 0.4, 0.1, 0.4, 0.1);
+    return ShapeNodeFunctions.divUniformRandomSize(s, 1/ ShapeNodeFunctions.windowFactor, 0.05, 1/ ShapeNodeFunctions.windowFactor, 0.05);
   }
 
 
@@ -625,14 +821,94 @@ class ShapeNodeFunctions {
     return ShapeNodeFunctions.divAxis(s);
   }
 
-  static divFacadePlaneSym(s : ShapeNode) : Array<ShapeNode> {
-    //console.log("divFacadePlane");
+
+  static glassFacadePlane(s : ShapeNode) : Array<ShapeNode> {
+    let master = s.getMaster()
     s.symbol = 'subdivA';
     s.meshname = '';
     //s.terminal = true;
-    
+    let sameFacade = Math.random() < 0.7
+    let randF = master['facade1']//Utils.randomIntRange(TexCell.FACADE1, TexCell.FACADE5 + 1);
+    let randF2 = master['facade2']
+    let window = master['window']
+
+    let glb_scale = s.approxGlobalScale()
     for (let i = 0 ; i < s.children.length; i++) {
       let newChildren = new Array<ShapeNode>();
+      /*
+      if(!sameFacade) {
+         randF = Utils.randomIntRange(TexCell.FACADE1, TexCell.FACADE5 + 1);
+         randF2 = Utils.randomIntRange(TexCell.FACADE1, TexCell.FACADE5 + 1);
+  
+      }*/
+      for(let j = 0; j < s.children[i].children.length; j++) {
+        let shp = s.children[i].children[j];
+        shp.symbol = 'plane'; 
+        shp.meshname = 'plane'; 
+
+        shp.tex_cell = TexCell.ROOF1;
+        s.children[i].meshname = '';  
+        let randdiv = Utils.randomIntRange(1,5);
+
+        if(glb_scale[1] < 0.4 || Math.random() < 0.6) {
+          randdiv =1
+        }
+
+        let div = ShapeNodeFunctions.dividePlane(shp, 1, randdiv);  
+
+        div.push(shp)
+        let pillarsize = Math.random() > 0.5 ? 0 : Math.random() * 0.1
+        for(let d = 0; d < div.length; d++) {
+            let splitSize = Utils.randomFloatRange(0.05, 0.1);
+           let r = ShapeNodeFunctions.splitAlong(div[d], 1 - splitSize, 2);
+            r[1].tex_cell = randF2;
+            r[1].symbol ='pillar';
+            r[0].tex_cell = window;
+
+            if(pillarsize > 0)  {
+              let rx = ShapeNodeFunctions.splitAlongSym(r[0], pillarsize, 0);
+              rx[0].symbol = 'pillar'
+              rx[0].tex_cell = randF
+              rx[2].tex_cell = randF
+              rx[2].symbol = 'pillar'
+              newChildren.push(rx[0])
+              newChildren.push(rx[2])
+  
+            }
+
+            newChildren.push(r[1])
+            if(div[d] !== shp) {
+              newChildren.push(r[0])
+            }
+        }
+
+      }
+      s.children[i].children = s.children[i].children.concat(newChildren)
+    }
+    
+    return new Array<ShapeNode>(s);
+
+  }
+
+  static divFacadePlaneSym(s : ShapeNode) : Array<ShapeNode> {
+    //console.log("divFacadePlane");
+    let master = s.getMaster()
+    s.symbol = 'subdivA';
+    s.meshname = '';
+    //s.terminal = true;
+    let sameFacade = Math.random() < 0.7
+    let randF = master['facade1']//Utils.randomIntRange(TexCell.FACADE1, TexCell.FACADE5 + 1);
+    let randF2 = master['facade2']
+
+    let glb_scale = s.approxGlobalScale()
+    for (let i = 0 ; i < s.children.length; i++) {
+      let newChildren = new Array<ShapeNode>();
+      /*
+      if(!sameFacade) {
+         randF = Utils.randomIntRange(TexCell.FACADE1, TexCell.FACADE5 + 1);
+         randF2 = Utils.randomIntRange(TexCell.FACADE1, TexCell.FACADE5 + 1);
+  
+      }*/
       for(let j = 0; j < s.children[i].children.length; j++) {
         let shp = s.children[i].children[j];
         shp.symbol = 'plane'; 
@@ -643,24 +919,31 @@ class ShapeNodeFunctions {
 
         //shp.position[1] = 0.0;
         //newChildren.push(shp); 
-        let randdiv = Utils.randomIntRange(2,5);
-        let div = ShapeNodeFunctions.dividePlane(shp, 1, randdiv);
-        let randF = Utils.randomIntRange(TexCell.FACADE1, TexCell.FACADE4 + 1);
-        let randF2 = Utils.randomIntRange(TexCell.FACADE1, TexCell.FACADE4 + 1);
+        let randdiv = Utils.randomIntRange(1,5);
+
+        if(glb_scale[1] < 0.4 || Math.random() < 0.6) {
+          randdiv =1
+        }
+
+        let div = ShapeNodeFunctions.dividePlane(shp, 1, randdiv);  
+
 
         div.push(shp)
         for(let d = 0; d < div.length; d++) {
             let splitSize = Utils.randomFloatRange(0.05, 0.1);
             //newChildren.push(div[d]);
             //div[d].tex_cell = randF;
-           let r = ShapeNodeFunctions.splitAlong(div[d], splitSize, 2);
-            r[0].symbol ='pillar';
-            r[1].symbol ='window cell';
-            r[0].tex_cell = randF2;
-            r[0].meshname = 'extrudeplane';
-            r[1].tex_cell = randF;
+           let r = ShapeNodeFunctions.splitAlong(div[d], 1 - splitSize, 2);
+            r[1].tex_cell = randF2;
+            r[1].symbol ='pillar';
+            r[1].meshname = 'extrudeplane';
 
-            let rx = ShapeNodeFunctions.splitAlongSym(r[1], 0.1, 0);
+            let r1_gscale = r[1].approxGlobalScale()
+            r[0].symbol ='window cell';
+            r[0].tex_cell = randF;
+
+            let pillarsize = Math.random() * 0.2
+            let rx = ShapeNodeFunctions.splitAlongSym(r[0], pillarsize, 0);
             rx[0].symbol = 'pillar'
             rx[0].tex_cell = randF
             rx[2].tex_cell = randF
@@ -669,7 +952,7 @@ class ShapeNodeFunctions {
 
             newChildren.push(rx[0])
             newChildren.push(rx[2])
-            r[1].meshname = 'window3';
+            r[0].meshname = 'window3';
 
             newChildren.push(r[1])
 
@@ -690,7 +973,7 @@ class ShapeNodeFunctions {
   }
 
   static divFacadePlaneNonSym(s : ShapeNode) : Array<ShapeNode> {
-    console.log("divFacadePlane");
+    //console.log("divFacadePlane");
     s.symbol = 'subdivA';
     s.meshname = '';
     //s.terminal = true;
@@ -704,12 +987,11 @@ class ShapeNodeFunctions {
       s.children[i].meshname = '';  
 
       //shp.position[1] = 0.0;
-      //s.children[i].children.push(shp);
       let r = ShapeNodeFunctions.splitAlong(shp, 0.2, 0);
       r[0].symbol ='pillar';
       r[1].symbol ='window cell';
 
-      s.children[i].children.push(r[1])
+      s.children[i].addChild(r[1])
 
     }
     
@@ -776,7 +1058,8 @@ class ShapeNodeFunctions {
    // console.log("scatterWindows");
     s.symbol = 'window';
     s.terminal = true;
-    let randWind = Utils.randomIntRange(TexCell.WINDOW1, TexCell.WINDOW3 + 1);
+    let master = s.getMaster()
+    let randWind = master['window']
 
     for (let i = 0; i < s.children.length; i++) {
       let randXScale = 0.5 + 0.2 * Math.random();
@@ -791,7 +1074,7 @@ class ShapeNodeFunctions {
           wind.scale[0] = randXScale;
           wind.scale[2] = randZScale;
 
-          s.children[i].children[j].children.push(wind);//windowName;
+          s.children[i].children[j].addChild(wind);//windowName;
         }
           //s.children[i].children[j].tex_cell = randWind;
         }
@@ -816,7 +1099,7 @@ class ShapeNodeFunctions {
         wind.scale[0] = 0.8;
         wind.scale[2] = 0.8;
 
-        s.children[i].children[j].children.push(wind);//windowName;
+        s.children[i].children[j].addChild(wind);//windowName;
       }
     }
     return new Array<ShapeNode>(s);
@@ -873,12 +1156,8 @@ class ShapeNodeFunctions {
         }
       }
     }
-    
     return new Array<ShapeNode>(s);
-
   }
-
-  
 }
 
 
@@ -896,6 +1175,7 @@ class ShapeGrammar  {
   fullMesh : Mesh;
   randomColor : boolean;
   meshNames : Map<string, Mesh>;
+  root:ShapeNode
   gridDivs:number;
   charExpansions : Map<string, string>;
   symbolsToRules : Map<string, Array<FreqPair>>;
@@ -906,6 +1186,7 @@ class ShapeGrammar  {
     this.axiom = "X";
     this.shapes = new Array<ShapeNode>();
     this.meshes = new Array<Mesh>();
+    this.root = new ShapeNode()
     this.iterations = 3;
     this.charExpansions = new Map();
     this.symbolsToRules = new Map();
@@ -937,8 +1218,213 @@ refreshGrammar() {
 
 }
 
+scaleAboutAnchor(p : vec3, anchor : vec3, scale: vec3) {
+  let invAnchor = vec3.create()
+  vec3.scale(invAnchor, anchor, -1)
+  let s = mat4.create()
+
+  mat4.translate(s,s,anchor)
+  mat4.scale(s,s,scale)
+  mat4.translate(s,s,invAnchor)
+
+  vec3.transformMat4(p,p,s)
+}
+
+boxesAlongEdges(face : Array<GraphVertex>) {
+  let res = new Array<ShapeNode>()
+
+  if(face.length <= 3) {
+    return res
+  }
+  let bb = GraphVertex.boundingBoxFromVerts(face)
+  let center = bb.getCenter()
+  let center3 = vec3.fromValues(center[0], 0, center[1])
+  let overlap = 0.25
+  for(let i = 0; i < face.length; i++) {
+    let p1 = vec3.create()
+    vec3.copy(p1,face[i].pos)
+
+    this.scaleAboutAnchor(p1,center3,vec3.fromValues(0.6,1,0.6))
+    let p2 = vec3.create()
+    vec3.copy(p2, face[(i + 1) % face.length].pos);
+    this.scaleAboutAnchor(p2,center3,vec3.fromValues(0.6,1,0.6))
+
+    let dir = vec3.create()  
+    vec3.subtract(dir, p2,p1)
+    
+    vec3.normalize(dir,dir)
+
+    vec3.scaleAndAdd(p1, p1, dir, overlap * 0.5)
+   // vec3.scaleAndAdd(p2, p2, dir, overlap * 0.5)
+
+    let xaxis = vec3.fromValues(1,0,0)
+
+    let xz = vec2.fromValues(dir[0],dir[2])
+    let xax2 = vec2.fromValues(1,0)
+    
+    let o = Math.sign(Utils.crossVec2(xz, xax2))
+    let rot = vec3.angle(xaxis, dir)
+
+    if(o == -1) {
+      rot *= -1
+    }
+
+    let length = vec3.distance(p1,p2)
+
+    let angle = Utils.radiansToDegrees(rot);
+    let divs = Math.ceil(length * 5)
+    let dv = length / divs
+
+    let look = vec3.fromValues(0,0,1)
+    vec3.rotateY(look,look,vec3.create(),rot)
+
+
+    let intervals = new Array<number>();
+    let currL = 0
+    let lastL = 0.2 + Math.random() * 0.3
+    while(currL + 0.2 <length) {
+      intervals.push(currL)
+      if(Math.random() > 0.5) {
+        lastL = 0.2 + Math.random() * 0.3
+
+      } 
+      currL += lastL
+    }
+    intervals.push(length)
+
+    console.log("intervals " + intervals)
+    for(let j = 0; j < intervals.length - 1; j++) {
+      let lastp = vec3.create()
+      vec3.scaleAndAdd(lastp, p1, dir, intervals[j] + 0.07)
+
+      let nextp = vec3.create()
+      vec3.scaleAndAdd(nextp, p1, dir, intervals[j + 1])
+
+      let sn = new ShapeNode();
+      sn.rotation[1] = angle
+      sn.scale[0] = intervals[j + 1] - intervals[j]
+      sn.scale[2] = 0.1
+
+      let sz = Math.random() * (overlap - 0.1)
+      if(j == intervals.length - 2) {
+        sz = overlap - 0.2 + Math.random()  * 0.1
+      }
+     // let sz = Math.random() > 0.5 ? overlap : 0
+     // ShapeNodeFunctions.scaleAboutMinEnd(sn,2,sz)
+      sn.scale[2] += sz
+      sn.symbol = 'start'
+      vec3.lerp(sn.position, lastp, nextp, 0.5)
+      sn.position[1] = 0.5
+
+  
+      vec3.scaleAndAdd(sn.position,sn.position,look, -0.5 * sz)
+     // ShapeNodeFunctions.drawBetweenPoints(sn, lastp, nextp)
+      res.push(sn)
+    }
+
+  }
+  console.log("res length" + res.length)
+  //res.push(parent)
+  return res
+
+}
+
+faceToBoundingBox(face : Array<GraphVertex>) {
+  let res = new Array<ShapeNode>()
+  let bb = GraphVertex.boundingBoxFromVerts(face)
+  let center = bb.getCenter()
+  let parent = new ShapeNode();
+  parent.position = vec3.fromValues(center[0], 0.5, center[1])
+  parent.symbol = 'start'
+
+  if(face.length >= 2) {
+    let p1 = face[0].pos;
+    let p2 = face[1].pos;
+    let dir = vec3.create()
+    let pos = vec3.create()
+    vec3.lerp(pos,p2, p1, 0.5)
+    vec3.subtract(pos, pos, parent.position)
+    let xaxis = vec3.fromValues(1,0,0)
+
+    vec3.subtract(dir, p2,p1)
+    let xz = vec2.fromValues(dir[0],dir[2])
+    let xax2 = vec2.fromValues(1,0)
+
+    let o = Math.sign(Utils.crossVec2(xz, xax2))
+    let rot = vec3.angle(xaxis, dir)
+
+    if(o == -1) {
+      rot *= -1
+    }
+
+    parent.rotation[1] = Utils.radiansToDegrees(rot)
+  }
+  console.log('parent rot ' + parent.rotation)
+  res.push(parent)
+  parent.scale[0] = 0.6
+  parent.scale[2] = 0.6
+
+  return res
+}
+
+extrudeFace(face : Array<GraphVertex>) {
+  let res = new Array<ShapeNode>()
+  let bb = GraphVertex.boundingBoxFromVerts(face)
+  let center = bb.getCenter()
+  let parent = new ShapeNode();
+  parent.position = vec3.fromValues(center[0], 0.5, center[1])
+  parent.symbol = 'level'
+  parent.meshname = ''
+  parent.scale[0] = 0.5
+  parent.scale[2] = 0.5
+
+  for(let i = 0; i < face.length; i++) {
+    let p1 = face[i].pos;
+    let p2 = face[(i + 1) % face.length].pos;
+    let dir = vec3.create()
+    let pos = vec3.create()
+    vec3.lerp(pos,p2, p1, 0.5)
+    vec3.subtract(pos, pos, parent.position)
+    let xaxis = vec3.fromValues(1,0,0)
+
+    vec3.subtract(dir, p2,p1)
+    let xz = vec2.fromValues(dir[0],dir[2])
+    let xax2 = vec2.fromValues(1,0)
+    let length = vec3.length(dir)
+
+    let o = Math.sign(Utils.crossVec2(xz, xax2))
+    let rot = vec3.angle(xaxis, dir)
+
+    if(o == 1) {
+      rot *= -1
+    }
+
+    let xyPos = new ShapeNode();
+    xyPos.meshname = '';
+    xyPos.rotation[0] = 90;
+    xyPos.scale[0] = length;
+
+    xyPos.rotation[2] = Utils.radiansToDegrees(rot);
+    xyPos.position = pos
+    parent.addChild(xyPos)
+
+    let xyPlane = new ShapeNode();
+    xyPlane.meshname = "plane";
+    xyPos.addChild(xyPlane);
+   // xyPos.copyshallow(s);
+    //xyPos.meshname =  "plane";
+    let floorshape = ShapeNodeFunctions.splitAlongLocalPt(xyPlane, 0.9, 2)[1];
+    xyPos.addChild(floorshape);
+
+    xyPos.position[1] = 0;
+  }
+  res.push(parent)
+  return res
+}
+
   fillAxiom() {
     this.m_roads = new Roads()
+    this.m_roads.resetBoundsSquare(this.gridDivs)
     this.m_roads.expandAxiom();
     this.m_roads.expandSegments();
    // this.m_roads.findFaces()
@@ -957,58 +1443,35 @@ refreshGrammar() {
 
       g.position = vec3.fromValues(0, -0.05, 0);
       g.position[2] += g.scale[2] * 0.5;
-   // this.shapes.push(g);    
-
-    /*
-    for(let x = 0; x < this.gridDivs; x++) {
-      for(let z = 0; z < this.gridDivs; z++) {
-        let xs = Math.random() * 3;
-        let ys = 0.5 * (Utils.perlin(vec2.fromValues(x * 1.6, z * 1.6)) + 1);
-        let zs = Math.random() * 3;
-
-        if(ys > 0.0) {
-          let s = new ShapeNode();
-          s.symbol = 'start';
-          s.position = vec3.fromValues(x * cs, 0.5, z * cs);
-          vec3.add(s.position, s.position, minCorner);
-          //console.log('YS', ys);
-          vec3.add(s.scale, vec3.fromValues(xs,0.0,zs), s.scale);
-          ShapeNodeFunctions.scaleAboutMinEnd(s, 1, ys * ys * 9);
-          //s.rotation[1] = 30 * Math.random();
-          //s.position[1] = s.scale[1] * 0.5; 
-          s.position[2] += g.scale[2] * 0.5;
-
-          this.shapes.push(s);      
-        }
-      }
-    }*/
 
     for(let i = 0; i < this.m_roads.faces.length;i++) {
       let face = this.m_roads.faces[i]
+      let res = this.boxesAlongEdges(face)
         let bb = GraphVertex.boundingBoxFromVerts(face)
         let pos = bb.getCenter()
-        console.log("CENTER " + pos)
-        let xs = Math.random() * 3;
-        let ys = 0.5 * (Utils.perlin(vec2.fromValues(pos[0] * 1.6, pos[1] * 1.6)) + 1);
-        let zs = Math.random() * 3;
-
-        //ys = 1.0
-          let s = new ShapeNode();
-          s.scale[0] = 0.7
-          s.scale[2] = 0.7
-
-          s.symbol = 'start';
-          s.position = vec3.fromValues(pos[0], 0.5, pos[1]);
-         // vec3.add(s.position, s.position, minCorner);
-          //console.log('YS', ys);
+        //console.log("CENTER " + pos)
+          for (let r = 0; r < res.length; r++) {
+            let ys = 0.3+ 0.35 * (Utils.perlin(vec2.fromValues(res[r].position[0] * 1.6, res[r].position[2] * 1.6)) + 1);
+           // ys = 0.5 + 0.8 * Math.random()
+            //ys*=ys
+             // ys = Utils.clamp(ys - 0.6, 0.1, ys)
+             let randomMat = Utils.randomIntRange(TexCell.FACADE1, TexCell.FACADE5)
+            let geom = new ShapeNode()
+            geom.tex_cell = randomMat
+            res[r].meshname = ''
+            res[r].master =  {
+              'window':Utils.randomIntRange(TexCell.WINDOW1, TexCell.WINDOW3 + 1),
+              'facade1':Utils.randomIntRange(TexCell.FACADE1, TexCell.FACADE6 + 1),
+              'facade2':Utils.randomIntRange(TexCell.FACADE1, TexCell.FACADE6 + 1),
+            }
+            
           
-          //vec3.add(s.scale, vec3.fromValues(xs,0.0,zs), s.scale);
-          ShapeNodeFunctions.scaleAboutMinEnd(s, 1, ys * ys * 9);
-          //s.rotation[1] = 30 * Math.random();
-          //s.position[1] = s.scale[1] * 0.5; 
-          //s.position[2] += g.scale[2] * 0.5;
+            res[r].addChild(geom)
+            ShapeNodeFunctions.setScaleAboutMinEnd(res[r], 1, ys * ys);
+            this.shapes.push(res[r])
+            this.root.addChild(res[r])
 
-          this.shapes.push(s);      
+          }
         
         
       
@@ -1062,12 +1525,17 @@ refreshGrammar() {
     //initial shape of building
     this.symbolsToRules.set("start", new Array<FreqPair>());
    // this.symbolsToRules.get("start").push(new FreqPair(0.3, ShapeNodeFunctions.halve));
-   //this.symbolsToRules.get("start").push(new FreqPair(0.1, ShapeNodeFunctions.stackY)); 
-   this.symbolsToRules.get("start").push(new FreqPair(0.3, ShapeNodeFunctions.stretchRand));
+   this.symbolsToRules.get("start").push(new FreqPair(0.3, ShapeNodeFunctions.stackY)); 
+   //this.symbolsToRules.get("start").push(new FreqPair(0.3, ShapeNodeFunctions.stretchRand));
    this.symbolsToRules.get("start").push(new FreqPair(0.2, ShapeNodeFunctions.passThrough));
    this.symbolsToRules.get("start").push(new FreqPair(0.5, ShapeNodeFunctions.growYOffsetX));
    this.symbolsToRules.get("start").push(new FreqPair(0.3, ShapeNodeFunctions.OffsetYSim));
 
+
+  }
+
+  fillStackList() {
+    this.symbolsToRules.get("start").push(new FreqPair(0.3, ShapeNodeFunctions.stackY)); 
 
   }
 
@@ -1100,8 +1568,8 @@ refreshGrammar() {
     this.symbolsToRules.get("roof decor").push(new FreqPair(0.03, ShapeNodeFunctions.spire));
     this.symbolsToRules.get("roof decor").push(new FreqPair(0.03, ShapeNodeFunctions.spike));
     this.symbolsToRules.get("roof decor").push(new FreqPair(0.3, ShapeNodeFunctions.watertower));
-    this.symbolsToRules.get("roof decor").push(new FreqPair(0.3, ShapeNodeFunctions.roof1));
-    this.symbolsToRules.get("roof decor").push(new FreqPair(0.3, ShapeNodeFunctions.roof2));
+   // this.symbolsToRules.get("roof decor").push(new FreqPair(0.3, ShapeNodeFunctions.roof1));
+    //this.symbolsToRules.get("roof decor").push(new FreqPair(0.3, ShapeNodeFunctions.roof2));
 
   }
 
@@ -1109,8 +1577,9 @@ refreshGrammar() {
   fillFirstSubdivList() {
     //planar facades -> further facade subdivisions
     this.symbolsToRules.set("level", new Array<FreqPair>());
-    this.symbolsToRules.get("level").push(new FreqPair(0.3, ShapeNodeFunctions.divFacadePlaneSym));
-   // this.symbolsToRules.get("level").push(new FreqPair(0.3, ShapeNodeFunctions.divFacadePlaneNonSym));
+    this.symbolsToRules.get("level").push(new FreqPair(0.6, ShapeNodeFunctions.divFacadePlaneSym));
+    this.symbolsToRules.get("level").push(new FreqPair(0.3, ShapeNodeFunctions.glassFacadePlane));
+
 
   }
 
@@ -1152,10 +1621,10 @@ refreshGrammar() {
     //subdivisions -> windows
     this.symbolsToRules.set("door", new Array<FreqPair>());
     this.symbolsToRules.get("door").push(new FreqPair(0.2, ShapeNodeFunctions.door1));
-    this.symbolsToRules.get("door").push(new FreqPair(0.2, ShapeNodeFunctions.door2));
+   //this.symbolsToRules.get("door").push(new FreqPair(0.2, ShapeNodeFunctions.door2));
     this.symbolsToRules.get("door").push(new FreqPair(0.2, ShapeNodeFunctions.door3));
     this.symbolsToRules.get("door").push(new FreqPair(0.2, ShapeNodeFunctions.door4));
-    this.symbolsToRules.get("door").push(new FreqPair(0.2, ShapeNodeFunctions.door5));
+    //this.symbolsToRules.get("door").push(new FreqPair(0.2, ShapeNodeFunctions.door5));
 
   }
 
@@ -1164,7 +1633,7 @@ refreshGrammar() {
     let res :  Array<ShapeNode> = new  Array<ShapeNode>();
 
     if(!this.symbolsToRules.has(s.symbol)) {
-      console.log("no symbol found: " + s.symbol);
+     // console.log("no symbol found: " + s.symbol);
       res.push(s);
       return res;
     }
@@ -1271,7 +1740,7 @@ refreshGrammar() {
   }
 
   loadMeshes() {
-    this.loadMeshesRecursively(this.shapes, mat4.create());
+    this.loadMeshesRecursively(this.root.children, mat4.create());
     //this.meshes = new Array<Mesh>();
     
   }

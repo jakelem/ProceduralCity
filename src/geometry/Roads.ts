@@ -96,8 +96,6 @@ class TensorField {
   getGrid(dir : vec2) {
     //vec2.normalize(dir, dir)
     let theta = Math.atan(dir[1]/dir[0])
-    console.log("theta: "  + Utils.radiansToDegrees(theta))
-
     this.setMajorMinor(theta)
 
   }
@@ -148,11 +146,6 @@ class BoundingBox2D {
     let y = this.minCorner[1] + (Math.abs(this.maxCorner[1] - this.minCorner[1])) * 0.5
 
     let res = vec2.fromValues(x,y)
-
-    console.log("maxcorner " + this.maxCorner)
-    console.log("mincorner " + this.minCorner)
-    console.log("center corner " + res)
-
     return res
   }
 }
@@ -172,16 +165,13 @@ class GraphVertex {
   }
 
   static boundingBoxFromVerts(face : Array<GraphVertex>) {
-    console.log("\n")
 
-    console.log("next face")
     let minX = Number.MAX_VALUE
     let maxX = -Number.MAX_VALUE
     let minZ = Number.MAX_VALUE
     let maxZ = -Number.MAX_VALUE
 
     for(let i = 0 ; i < face.length; i++) {
-      console.log("vertex " + i + " " + face[i].pos)
       minX = Math.min(face[i].pos[0], minX)
       maxX = Math.max(face[i].pos[0], maxX)
       minZ = Math.min(face[i].pos[2], minZ)      
@@ -262,6 +252,7 @@ class Intersection {
 }
 
 class Roads extends LSystem {
+  seed : number
   prevPosition: vec3;
   prevOrientation : vec3;
   prevDepth : number;
@@ -285,7 +276,7 @@ class Roads extends LSystem {
     this.currTurtle = new GraphTurtle()
     this.currTurtle.position = vec3.fromValues(1,0,0);
     this.currTurtle.orientation = vec3.fromValues(0,0,1);
-    
+    this.seed = Math.random() * 1000
     this.orientation = vec3.fromValues(0,0,0);
     this.depth = 0;
     this.m_plane = new Plane();
@@ -294,9 +285,12 @@ class Roads extends LSystem {
     this.iterations = 7;
     this.adjList = new Set<GraphVertex>()
     this.fillCharToAction()
-    this.setAxiom()
     this.faces = new Array<Array<GraphVertex>>()
     this.bounds = new BoundingBox2D(-20,20,-20,20)
+    this.bounds = new BoundingBox2D(-6,6,-6,6)
+
+    this.setAxiom()
+
   }
 
   //https://mosaic.mpi-cbg.de/docs/Schneider2015.pdf
@@ -527,7 +521,7 @@ class Roads extends LSystem {
     for(let i = 0; i < this.faces.length;i++) {
       let face = this.faces[i]
       let planemesh = new PolyPlane()
-      console.log("FACE " + i)
+      //console.log("FACE " + i)
       for(let j = 0; j < face.length; j++) {
         let point = Utils.vec3ToVec4(face[j].pos,1);
         let point2 = Utils.vec3ToVec4(face[(j + 1) % face.length].pos,1);
@@ -567,7 +561,7 @@ class Roads extends LSystem {
     this.drawEdges()
     console.log("FUllmesh" + this.fullMesh.positions)
     this.findFaces()
-    this.drawFaces()
+   // this.drawFaces()
   }
 
 
@@ -717,7 +711,8 @@ class Roads extends LSystem {
     dir = vec2.fromValues(1,0)
 
     let inp  = vec2.create()
-    vec2.scale(inp, p2, 0.05)
+    vec2.scale(inp, p2, 0.03)
+    inp[0] += this.seed
     let h1 = Utils.perlin(inp)
     let h2 = Utils.perlin(vec2.fromValues(inp[0] + 0.01,inp[1]))
     let h3 = Utils.perlin(vec2.fromValues(inp[0],inp[1] + 0.01))
@@ -811,7 +806,7 @@ class Roads extends LSystem {
   advanceTurtleTensor(major : boolean) {
     //let mesh = new Mesh('/geo/plane.obj', vec3.clone(this.currTurtle.position), vec3.fromValues(1,1,1), vec3.clone(this.currTurtle.orientation))
     //this.meshes.push(mesh);
-    console.log("curr vert id " + GraphVertex.currId)
+    //console.log("curr vert id " + GraphVertex.currId)
     let rotMat = mat4.create();
 
 
@@ -864,6 +859,10 @@ class Roads extends LSystem {
   }
 
 
+  resetBoundsSquare(size :number) {
+    this.bounds = new BoundingBox2D(-size, size, -size, size)
+    this.setAxiom()
+  }
   outOfBounds(v : vec3) {
     return v[0] > this.bounds.maxCorner[0] || v[0] < this.bounds.minCorner[0] || v[2] > this.bounds.maxCorner[1] || v[2] < this.bounds.minCorner[1]
   }
@@ -909,10 +908,10 @@ class Roads extends LSystem {
   setAxiom() {
     this.axiom = "X";
     this.segmentCandidates = new Array<Segment>()
-    let v1 = vec3.fromValues(-9,0,-9)
+    let v1 = vec3.fromValues(this.bounds.minCorner[0] + 1,0,this.bounds.minCorner[1] + 1)
     let vert1 = new GraphVertex(v1)
 
-    let v2 = vec3.fromValues(-9,0,-8)
+    let v2 = vec3.fromValues(v1[0],0,v1[2] + 1)
     let vert2 = new GraphVertex(v2)
     let seg = new Segment(vert1,vert2)
 
