@@ -12,14 +12,19 @@ class Mesh extends Drawable {
   positions: Array<number>;
   colors: Array<number>;
   normals: Array<number>;
+  tangents: Array<number>;
+  bitangents: Array<number>;
+
   uvs : Array<number>;
   center: vec4;
   scale: vec3;
-
+  debug:boolean
   //represents the cell in the grid texture that applies to this mesh
   uv_cell : number;
   uv_scale : number;
+  scale_uvs : boolean;
   tex_divs : number;
+  transform_uvs : boolean
 
   rotate: vec3;
   filepath: string;
@@ -31,7 +36,7 @@ class Mesh extends Drawable {
   m_angle:number;
   enabled : boolean;
   transform : mat4;
-
+  flip_uvy :boolean
   maxIdx : number;
     
   constructor(filepath: string, center: vec3 = vec3.fromValues(0,0,0), 
@@ -50,9 +55,11 @@ class Mesh extends Drawable {
     this.uv_cell = 0;
     this.tex_divs = 10;
     this.uv_scale = 1.0 / this.tex_divs;
-
+    this.debug = false
     this.enabled = true;
     this.maxIdx = -1;
+    this.scale_uvs = true
+    this.flip_uvy = false
     this.getOverallTransformation();
   }
   
@@ -67,13 +74,22 @@ class Mesh extends Drawable {
   }
 
   transformUV(uvx : number, uvy : number) {
-    uvx *= this.uv_scale;
-    uvy *= this.uv_scale;
+    if(this.scale_uvs) {
+      uvx *= this.uv_scale;
+      uvy *= this.uv_scale;  
+    }
 
     let cel_y = this.uv_scale * Math.floor(this.uv_cell / this.tex_divs);
     let cel_x = this.uv_scale * (this.uv_cell % this.tex_divs);
 
-    return vec2.fromValues(uvx + cel_x, uvy + cel_y);
+    if(this.scale_uvs) {
+
+      let nextcel_y = this.uv_scale * Math.floor(this.uv_cell / this.tex_divs + 1);
+      return vec2.fromValues(uvx + cel_x, Math.min(uvy + cel_y,nextcel_y - 0.01));
+    } else {
+      return vec2.fromValues(uvx + cel_x, uvy + cel_y);
+
+    }
   }
 
 
@@ -145,9 +161,16 @@ class Mesh extends Drawable {
     }
     for(let i = 0; i < prefab.uvs.length - 1; i += 2) {
      // mesh.uv_cell = 2;
-      let v2 = transformed.transformUV(prefab.uvs[i], prefab.uvs[i+1]);
+
+      let v2 = transformed.transformUV(prefab.uvs[i], transformed.flip_uvy ? 1 - prefab.uvs[i+1]: prefab.uvs[i+1]);
       this.uvs.push(v2[0]);
       this.uvs.push(v2[1]);
+      if(transformed.debug) {
+        //console.log("v2: " + v2)
+       }
+
+      
+     
     }
 
     //this.indices = new Array<number>(mesh.indices.length);
@@ -157,6 +180,85 @@ class Mesh extends Drawable {
       this.indices.push(idx);
       this.maxIdx = Math.max(idx, this.maxIdx);
     }
+  }
+
+  vec3FromFlattenedArray(arr : Array<number>, index : number) {
+      return vec3.fromValues(arr[index], arr[index + 1], arr[index+2])
+  }
+
+  vec2FromFlattenedArray(arr : Array<number>, index : number) {
+    return vec2.fromValues(arr[index], arr[index + 1])
+  }
+
+  //https://learnopengl.com/Advanced-Lighting/Normal-Mapping
+  computeTBN() {
+    this.tangents = new Array<number>(this.positions.length)
+    this.bitangents = new Array<number>(this.positions.length)
+
+    for(let i = 0; i < this.indices.length; i+=3) {
+      let p1 = this.vec3FromFlattenedArray(this.positions, 4 * this.indices[i])
+      let p2 = this.vec3FromFlattenedArray(this.positions, 4 * this.indices[i + 1])
+      let p3 = this.vec3FromFlattenedArray(this.positions, 4 * this.indices[i + 2])
+
+      let n = this.vec3FromFlattenedArray(this.normals, 4 * this.indices[i])
+      let uv1 = this.vec2FromFlattenedArray(this.uvs, 2 * this.indices[i])
+      let uv2 = this.vec2FromFlattenedArray(this.uvs, 2 * this.indices[i + 1])
+      let uv3 = this.vec2FromFlattenedArray(this.uvs, 2 * this.indices[i + 2])
+
+      let e1 = vec3.create()
+      vec3.subtract(e1,p2, p1)
+      let e2 = vec3.create()
+      vec3.subtract(e2,p3, p1)
+
+      let duv1 = vec2.create()
+      vec2.subtract(duv1, uv2, uv1)
+      let duv2 = vec2.create()
+      vec2.subtract(duv2, uv3, uv1)
+
+      if((duv1[0] * duv2[1] - duv2[0] * duv1[1]) == 0) {
+        // console.log("a zero")
+        // console.log("uv1: " + uv1)
+        // console.log("uv2: " + uv2)
+        // console.log("uv3: " + uv3)
+        // console.log("duv1: " + duv1)
+        // console.log("duv2: " + duv2)
+
+      }
+      let f = 1.0 / (duv1[0] * duv2[1] - duv2[0] * duv1[1]);
+      let tan = vec3.create()
+      let bit = vec3.create()
+
+      tan[0] = f * (duv2[1] * e1[0] - duv1[1] * e2[0]);
+      tan[1] = f * (duv2[1] * e1[1] - duv1[1] * e2[1]);
+      tan[2] = f * (duv2[1] * e1[2] - duv1[1] * e2[2]);
+      
+      bit[0] = f * (-duv2[0] * e1[0] + duv1[0] * e2[0]);
+      bit[1] = f * (-duv2[0] * e1[1] + duv1[0] * e2[1]);
+      bit[2] = f * (-duv2[0] * e1[2] + duv1[0] * e2[2]);
+
+      
+      for(let j = 0; j < 3; j ++) {
+        for(let k = 0; k < 3; k++) {
+          this.tangents[4 * this.indices[i + k] + j] = tan[j]
+          this.bitangents[4 * this.indices[i + k] + j] = bit[j]
+  
+        }
+
+      }
+
+      for(let k = 0; k < 3; k++) {
+        this.tangents[4 * this.indices[i + k] + 3] = 0
+        this.bitangents[4 * this.indices[i + k] + 3] = 0
+      }
+      
+    }
+    // console.log("indicies le " + this.indices.length)
+
+    // console.log("pos le " + this.normals.length)
+
+    // console.log("normal le " + this.normals.length)
+
+    // console.log("tamngent le " + this.tangents.length)
   }
 
   //parents this mesh's transformation to the input mesh's
@@ -273,7 +375,20 @@ class Mesh extends Drawable {
     gl.bufferData(gl.ARRAY_BUFFER, uv, gl.STATIC_DRAW);
 
 
-    //console.log(this.indices);
+    if(this.bitangents !== undefined) {
+      this.generateBit();
+      let bitangents = Float32Array.from(this.bitangents)
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.bufBit);
+      gl.bufferData(gl.ARRAY_BUFFER, bitangents, gl.STATIC_DRAW);
+    }
+
+    if(this.tangents !== undefined) {
+      this.generateTan();
+      let tangents = Float32Array.from(this.tangents)
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.bufTan);
+      gl.bufferData(gl.ARRAY_BUFFER, tangents, gl.STATIC_DRAW);
+    }
+    console.log(this.indices.length);
 
 
     }

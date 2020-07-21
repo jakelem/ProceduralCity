@@ -22,6 +22,8 @@ in vec4 fs_Col;
 out vec4 out_Col; // This is the final output color that you will see on your
                   // screen for the pixel that is currently being processed.
 
+
+uniform vec4 u_ShadowMap;
 void main()
 {
     // Material base color (before shading)

@@ -19,7 +19,7 @@ import {HalfEdgeMesh} from './geometry/HalfEdge';
 // This will be referred to by dat.GUI's functions that add GUI elements.
 const controls = {
   tesselations: 5,
-  iterations: 8,
+  iterations: 9,
   'Radius': 0.3,
   'Height': 0.3,
   'Grid Size': 4,
@@ -30,8 +30,11 @@ const controls = {
   'Smooth Shading': true,
   'Load Scene': loadScene, // A function pointer, essentially
   'Export OBJ': saveFile, // A function pointer, essentially
+  'Draw Shadow Map': false, // A function pointer, essentially
 
 };
+
+let shadowCreated = false;
 
 let icosphere: Icosphere;
 let square: Square;
@@ -50,13 +53,14 @@ const camera = new Camera(vec3.fromValues(0, 2, -3), vec3.fromValues(0, 2, 20));
 
 
 function loadScene() {
+  shadowCreated = false;
   background_meshes = new Array<Mesh>();
   grammar = new ShapeGrammar();
   grammar.iterations = controls.iterations;
   grammar.gridDivs = controls["Grid Size"];
   //camera.setTarget(vec3.fromValues(0, 2, -3), vec3.fromValues(0, 2, grammar.gridDivs * grammar.cell_size * 0.75));
-  camera.setTarget(vec3.fromValues(0, 5, 0), vec3.fromValues(0, 0, 0));
-
+//  camera.setTarget(vec3.fromValues(0, 5, 0), vec3.fromValues(0, 0, 0));
+  camera.setTarget(vec3.fromValues(5, 0, 0), vec3.fromValues(0, 0, 0));
   grammar.randomColor = controls["Random Color"];
   grammar.refreshGrammar();
   //console.log("SETNECE " + l_system.expandedSentence);
@@ -100,12 +104,14 @@ function main() {
   // Add controls to the gui
   const gui = new DAT.GUI();
   //gui.add(controls, 'tesselations', 0, 8).step(1);
-  gui.add(controls, 'iterations', 0, 8).step(1);
-  gui.add(controls, 'Grid Size', 5, 20).step(1);
+  gui.add(controls, 'iterations', 0, 12).step(1);
+  gui.add(controls, 'Grid Size', 4, 20).step(1);
   gui.add(controls, 'Random Color');
   gui.add(controls, 'Smooth Shading');
   gui.add(controls, 'Load Scene');
   gui.add(controls, 'Export OBJ');
+
+  gui.add(controls, 'Draw Shadow Map');
 
 
   // get canvas and webgl context
@@ -121,10 +127,17 @@ function main() {
   // Initial call to load scene
   loadScene();
 
-
   const renderer = new OpenGLRenderer(canvas);
   renderer.setClearColor(225/255, 240/255, 246/255, 1);
   gl.enable(gl.DEPTH_TEST);
+
+  const light = new ShaderProgram([
+    new Shader(gl.VERTEX_SHADER, require('./shaders/light-vert.glsl')),
+    new Shader(gl.FRAGMENT_SHADER, require('./shaders/light-frag.glsl')),
+  ]);
+
+  light.createTexture()
+
 
   const lambert = new ShaderProgram([
     new Shader(gl.VERTEX_SHADER, require('./shaders/lambert-vert.glsl')),
@@ -132,6 +145,11 @@ function main() {
   ]);
 
   lambert.createTexture();
+  lambert.makeLightViewProj();
+  lambert.createBump();
+
+  console.log("texture " + lambert.unifTexture)
+  console.log("bump " + lambert.unifBump)
 
   const planet = new ShaderProgram([
     new Shader(gl.VERTEX_SHADER, require('./shaders/planet-vert.glsl')),
@@ -142,18 +160,37 @@ function main() {
     new Shader(gl.VERTEX_SHADER, require('./shaders/static-vert.glsl')),
     new Shader(gl.FRAGMENT_SHADER, require('./shaders/static-frag.glsl')),
   ]);
+  background.createTexture();
+
+
 
   let time = 0.0;
+
+
   // This function will be called every frame
   function tick() {
-
+    if(grammar.finishedLoading && !shadowCreated) {
+      //if(!shadowCreated) {
+        renderer.renderShadow(light, [
+          grammar.fullMesh,
+         // grammar.m_roads.fullMesh,
+          //square
+        ]);
+        console.log("create shadow")
+        shadowCreated = true;
+    }
     camera.update();
     stats.begin();
     gl.viewport(0, 0, window.innerWidth, window.innerHeight);
     renderer.clear();
-    renderer.render(camera, background, [
-      square,
-    ]);
+
+    if(controls["Draw Shadow Map"]) {
+      renderer.render(camera, background, [
+        square,
+      ]);
+    }
+
+
     renderer.render(camera, lambert, [
       //icosphere,
       //m_mesh,
@@ -161,21 +198,28 @@ function main() {
 
     renderer.render(camera, planet, [
       //icosphere,
-      grammar.m_roads.fullMesh
+     // grammar.m_roads.fullMesh
     ]);
 
     time += 1;
     background.setTime(time);
+    
     //console.log(grammar.meshes);
     // for(let mesh of grammar.meshes) {
     //   renderer.render(camera, planet, [
     //     mesh,
     //   ]
     // );}
+    lambert.setCamPos(camera.controls.eye);
 
     if(grammar.fullMesh !== undefined) {
+      //if(!shadowCreated) {
+
+      
       renderer.render(camera, lambert, [
         grammar.fullMesh,
+        //grammar.m_roads.fullMesh
+        //square
       ]);
     }
 

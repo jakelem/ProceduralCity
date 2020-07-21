@@ -2,6 +2,7 @@ import {vec2, vec3, vec4, mat4} from 'gl-matrix';
 import Drawable from '../rendering/gl/Drawable';
 import {gl} from '../globals';
 import { SSL_OP_SSLEAY_080_CLIENT_DH_BUG } from 'constants';
+import {BoundingBox2D} from './Roads';
 
 import Mesh from './Mesh';
 import { pseudoRandomBytes } from 'crypto';
@@ -58,12 +59,25 @@ class PolyPlane extends Mesh {
     let nor = new Array<vec4>();
     let col = new Array<vec4>();
 
+    let bb = new BoundingBox2D(0,0,0,0)
+    bb.fromPosList(this.points)
+
+    let range = vec2.create()
+    vec2.subtract(range, bb.maxCorner, bb.minCorner)
+
+    let maxrange = Math.max(range[0], range[1])
+   // console.log("range " + range)
     for(let k = 0; k < this.points.length; k++) {
 
       let p = this.points[k]
       pos.push(p);
 
-      let u1 = vec2.fromValues(1.0,0.0);
+      let u1 = vec2.fromValues((p[0] - bb.minCorner[0]) / range[0],(p[2] - bb.minCorner[1]) / range[1]);
+      //let u1 = vec2.fromValues((p[0] - bb.minCorner[0]) / maxrange,(p[2] - bb.minCorner[1] / maxrange));
+      //vec2.random(u1)
+      if(u1[0] < 0 || u1[1] < 0) {
+        console.log("polyplane baddy " + u1)
+      }
       uvs.push(u1);
       col.push(this.m_color);
       let norm = vec4.fromValues(0,1,0,0);
@@ -94,8 +108,8 @@ class PolyPlane extends Mesh {
     /*
     console.log("NORMS size " + nor.length);
     console.log("NORMS " + nor);
-    console.log("IDX " + this.indices);*/
-
+    console.log("IDX " + this.indices);*/  
+    
   }
 
 
@@ -135,7 +149,7 @@ class PolyPlane extends Mesh {
     //console.log("COUNT " + this.count);
     //console.log(this.positions);
 
-    console.log(this.colors);
+    //console.log(this.colors);
 
 
     }

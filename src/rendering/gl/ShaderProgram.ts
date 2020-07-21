@@ -1,4 +1,4 @@
-import {vec4, mat4} from 'gl-matrix';
+import {vec3, vec4, mat3, mat4} from 'gl-matrix';
 import Drawable from './Drawable';
 import {gl} from '../../globals';
 
@@ -25,6 +25,8 @@ class ShaderProgram {
   attrNor: number;
   attrCol: number;
   attrUV: number;
+  attrTan : number
+  attrBit : number
 
   unifModel: WebGLUniformLocation;
   unifModelInvTr: WebGLUniformLocation;
@@ -32,7 +34,15 @@ class ShaderProgram {
   unifColor: WebGLUniformLocation;
   unifTime: WebGLUniformLocation;
   unifTexture: WebGLUniformLocation;
+  unifBump:WebGLUniformLocation;
+  unifLightViewProj : WebGLUniformLocation;
+  unifShadowMap :WebGLUniformLocation;
+  unifKernel : WebGLUniformLocation
+
+  shadowMap : WebGLUniformLocation;
   texture:WebGLUniformLocation;
+  bump:WebGLUniformLocation;
+  unifCamPos:WebGLUniformLocation;
   constructor(shaders: Array<Shader>) {
     this.prog = gl.createProgram();
 
@@ -48,6 +58,8 @@ class ShaderProgram {
     this.attrNor = gl.getAttribLocation(this.prog, "vs_Nor");
     this.attrCol = gl.getAttribLocation(this.prog, "vs_Col");
     this.attrUV = gl.getAttribLocation(this.prog, "vs_UV");
+    this.attrTan = gl.getAttribLocation(this.prog, "vs_Tan");
+    this.attrBit = gl.getAttribLocation(this.prog, "vs_Bit");
 
     this.unifModel      = gl.getUniformLocation(this.prog, "u_Model");
     this.unifModelInvTr = gl.getUniformLocation(this.prog, "u_ModelInvTr");
@@ -55,6 +67,12 @@ class ShaderProgram {
     this.unifColor      = gl.getUniformLocation(this.prog, "u_Color");
     this.unifTime     = gl.getUniformLocation(this.prog, "u_Time");
     this.unifTexture     = gl.getUniformLocation(this.prog, "u_Texture");
+    this.unifBump     = gl.getUniformLocation(this.prog, "u_NormalMap");
+    this.unifShadowMap     = gl.getUniformLocation(this.prog, "u_ShadowMap");
+    this.unifLightViewProj     = gl.getUniformLocation(this.prog, "u_LightViewProj");
+    this.unifKernel     = gl.getUniformLocation(this.prog, "u_Kernel");
+
+    this.unifCamPos     = gl.getUniformLocation(this.prog, "u_CamPos");
 
   }
 
@@ -70,11 +88,7 @@ static isPowerOf2(value : number) {
   return (value & (value - 1)) === 0;
 }
 
-
-createTexture() {
-  this.use();
-  // setting up texture in OpenGL
-
+makeTexture(src:string) {
   let texture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, texture);
   // Fill the texture with a 1x1 blue pixel.
@@ -82,7 +96,7 @@ createTexture() {
                 new Uint8Array([0, 0, 255, 255]));
   // Asynchronously load an image
   var image = new Image();
-  image.src = "./textures/textures.png";
+  image.src = src;
   image.crossOrigin = "anonymous";
 
   console.log(image.src);
@@ -103,9 +117,57 @@ createTexture() {
     }
   });
 
+  return texture;
+}
+
+
+createTexture() {
+  this.use();
+  // setting up texture in OpenGL
+
+  let texture = this.makeTexture("./textures/textures.png");
   this.texture = texture;
   
   gl.uniform1i(this.unifTexture, 0);
+
+}
+
+createBump() {
+  this.use();
+  // setting up texture in OpenGL
+
+  this.bump = this.makeTexture("./textures/normal_map.png");
+  
+  gl.uniform1i(this.unifBump, 1);
+
+}
+
+makeLightViewProj() {
+  let depthFramebuffer = gl.createFramebuffer();
+  //gl.bindFramebuffer(gl.FRAMEBUFFER, depthFramebuffer);
+
+  let lightPos = vec3.fromValues(5, 5, 0);
+  let projWidth = 8.5;
+  let projHeight = 8.5;
+
+  this.shadowMap = gl.createTexture() 
+  let lightView = mat4.create()
+  mat4.lookAt(lightView,lightPos,vec3.create(), vec3.fromValues(0,1,0))
+  let lightProj = mat4.create()
+  lightProj = mat4.ortho(lightProj,-projWidth * 0.5,projWidth * 0.5,
+    -projHeight * 0.5,projHeight * 0.5,0.1,10)
+  let lightViewProj = mat4.create()
+  mat4.multiply(lightViewProj, lightProj, lightView)
+  this.setLightViewProjMatrix(lightViewProj)
+  
+}
+
+
+setKernelMatrix(kernel : mat3) {
+  this.use()
+  if(this.unifKernel !== -1) {
+    gl.uniformMatrix3fv(this.unifKernel, false, kernel);
+  }
 
 }
 
@@ -120,6 +182,20 @@ createTexture() {
       mat4.transpose(modelinvtr, model);
       mat4.invert(modelinvtr, modelinvtr);
       gl.uniformMatrix4fv(this.unifModelInvTr, false, modelinvtr);
+    }
+  }
+
+  setLightViewProjMatrix(mat : mat4) {
+    this.use()
+    if(this.unifLightViewProj !== -1) {
+      gl.uniformMatrix4fv(this.unifLightViewProj, false, mat);
+    }
+  }
+
+  setCamPos(pos:vec3) {
+    this.use();
+    if(this.unifCamPos !== -1) {
+      gl.uniform3fv(this.unifCamPos, pos);
     }
   }
 
@@ -167,17 +243,49 @@ createTexture() {
       gl.vertexAttribPointer(this.attrUV, 2, gl.FLOAT, false, 0, 0);
     }
 
+    if (this.attrTan != -1 && d.bindTan()) {
+      gl.enableVertexAttribArray(this.attrTan);
+      gl.vertexAttribPointer(this.attrTan, 4, gl.FLOAT, false, 0, 0);
+    }
+
+    if (this.attrBit != -1 && d.bindBit()) {
+      gl.enableVertexAttribArray(this.attrBit);
+      gl.vertexAttribPointer(this.attrBit, 4, gl.FLOAT, false, 0, 0);
+    }
+
     if (this.unifTexture != -1) {
       gl.activeTexture(gl.TEXTURE0); //GL supports up to 32 different active textures at once(0 - 31)
       gl.bindTexture(gl.TEXTURE_2D, this.texture);
       gl.uniform1i(this.unifTexture, 0);
     }
 
+    if (this.unifBump != -1) {
+      gl.activeTexture(gl.TEXTURE1); //GL supports up to 32 different active textures at once(0 - 31)
+      gl.bindTexture(gl.TEXTURE_2D, this.bump);
+      gl.uniform1i(this.unifBump, 1);
+    }
+
+    if (this.unifShadowMap != -1) {
+      //gl.activeTexture(gl.TEXTURE2); //GL supports up to 32 different active textures at once(0 - 31)
+      //gl.bindTexture(gl.TEXTURE_2D, this.shadowMap);
+      gl.uniform1i(this.unifShadowMap, 2);
+    }
+
+
+   // console.log("unifbump "+ this.unifBump)
+    //console.log("unifTexture "+ this.unifTexture)
+
+
     d.bindIdx();
     gl.drawElements(d.drawMode(), d.elemCount(), gl.UNSIGNED_INT, 0);
 
     if (this.attrPos != -1) gl.disableVertexAttribArray(this.attrPos);
     if (this.attrNor != -1) gl.disableVertexAttribArray(this.attrNor);
+    if (this.attrCol != -1) gl.disableVertexAttribArray(this.attrCol);
+    if (this.attrUV != -1) gl.disableVertexAttribArray(this.attrUV);
+    if (this.attrTan != -1) gl.disableVertexAttribArray(this.attrTan);
+    if (this.attrBit != -1) gl.disableVertexAttribArray(this.attrBit);
+
   }
 };
 

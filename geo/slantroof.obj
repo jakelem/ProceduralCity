@@ -87,8 +87,8 @@ vn -0.750763 0.660571 0.000000
 vn -0.750763 0.660571 0.000000
 vn -0.750763 0.660571 0.000000
 s off
-g slantroof3:pCube1
-usemtl slantroof3:lambert4SG
+g slantroof1:pCube1
+usemtl slantroof1:lambert4SG
 f 1/25/1 2/26/2 4/27/3 3/28/4
 f 9/13/5 10/14/6 11/15/7 12/16/8
 f 5/29/9 6/30/10 8/31/11 7/32/12

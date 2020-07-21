@@ -2,6 +2,11 @@ import {vec2, vec3, vec4, mat4} from 'gl-matrix';
 
 
 class Utils {
+    static copyVec3(v : vec3) {
+        let res = vec3.create()
+        vec3.copy(res, v)
+        return res
+    }
     static xz(v: any) {
         return vec2.fromValues(v[0], v[2])
     }
@@ -109,6 +114,30 @@ class Utils {
 
         return res;
         //t * t * (3.0 - 2.0 * t);
+    }
+
+    static cosineInterp(p1 : number, p2:number, mu : number){
+      let m2 = (1-Math.cos(mu * Math.PI)) * 0.5
+      return (p1 * (1-m2) + p2 * m2)
+    }
+
+    static cosineInterp3(p1 : vec3, p2:vec3, mu : number){
+        return vec3.fromValues(Utils.cosineInterp(p1[0],p2[0], mu),
+        Utils.cosineInterp(p1[1],p2[1], mu),
+        Utils.cosineInterp(p1[2],p2[2], mu))
+      }
+
+
+    static scaleAboutAnchor(p : vec3, anchor : vec3, scale: vec3) {
+        let invAnchor = vec3.create()
+        vec3.scale(invAnchor, anchor, -1)
+        let s = mat4.create()
+    
+        mat4.translate(s,s,anchor)
+        mat4.scale(s,s,scale)
+        mat4.translate(s,s,invAnchor)
+    
+        vec3.transformMat4(p,p,s)
     }
 
 

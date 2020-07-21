@@ -19,10 +19,13 @@ in vec4 fs_Nor;
 in vec4 fs_LightVec;
 in vec4 fs_Col;
 in vec4 fs_Pos;
+in vec2 fs_UV;
+uniform sampler2D u_ShadowMap;
+uniform sampler2D u_Texture;
 
 uniform float u_Time;
 
-const vec3 sunset[5] = vec3[](
+const vec3 sky[5] = vec3[](
 vec3(142, 199, 230) / 255.0,
 
 vec3(142, 199, 230) / 255.0,
@@ -40,6 +43,18 @@ vec3(142, 120, 184) / 255.0,
 vec3(252, 144, 168) / 255.0,
 vec3(255, 182, 192) / 255.0
 );
+
+
+const vec3 sunset[5] = vec3[](
+vec3(142, 199, 230) / 255.0,
+
+vec3(142, 199, 230) / 255.0,
+
+vec3(142, 199, 230) / 255.0,
+
+vec3(142, 199, 230) / 255.0,
+vec3(142, 219, 250) / 255.0);
+
 
 const float cutoffs[5] = float[](0.15,0.3,0.4,0.65,0.75);
 
@@ -88,4 +103,9 @@ void main()
        // out_Col = vec4(0,0.8,0.5,1);
        out_Col = vec4(uvToSunset(uv),1);
 	//out_Col = diffuseColor;
+
+out_Col =  texture(u_ShadowMap, fs_UV);
+//out_Col =  vec4(fs_UV,0.0,1.0);
+//out_Col =  vec4(gl_FragCoord.xy / 2048.0,0.0,1.0);
+
 }

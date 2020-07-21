@@ -9,11 +9,17 @@ abstract class Drawable {
   bufUV: WebGLBuffer;
   bufCol: WebGLBuffer;
 
+
+  bufBit: WebGLBuffer;
+  bufTan: WebGLBuffer;
+
   idxBound: boolean = false;
   posBound: boolean = false;
   norBound: boolean = false;
   uvBound: boolean = false;
   colBound: boolean = false;
+  bitBound : boolean = false;
+  tanBound : boolean = false;
 
   abstract create() : void;
 
@@ -50,6 +56,16 @@ abstract class Drawable {
     this.bufCol = gl.createBuffer();
   }
 
+  generateBit() {
+    this.bitBound = true;
+    this.bufBit = gl.createBuffer();
+  }
+
+  generateTan() {
+    this.tanBound = true;
+    this.bufTan = gl.createBuffer();
+  }
+
   bindIdx(): boolean {
     if (this.idxBound) {
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.bufIdx);
@@ -83,6 +99,20 @@ abstract class Drawable {
       gl.bindBuffer(gl.ARRAY_BUFFER, this.bufCol);
     }
     return this.colBound;
+  }
+
+  bindTan(): boolean {
+    if (this.tanBound) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.bufTan);
+    }
+    return this.tanBound;
+  }
+
+  bindBit() : boolean {
+    if(this.bitBound) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.bufBit);
+    }
+    return this.bitBound;
   }
 
   elemCount(): number {

@@ -17,7 +17,7 @@ class Plane extends Mesh {
   colors: Array<number>;
   normals: Array<number>;
   smoothshade : boolean;
-  
+  change_uvs:boolean
   filepath: string;
   m_color:vec4;
   mesh : any;
@@ -44,7 +44,7 @@ class Plane extends Mesh {
     this.enabled = true;
     this.smoothshade = true;
     this.maxIdx = -1;
-
+    this.change_uvs = false;
     this.p1 = vec4.fromValues(0.5,0,0.5,1);
     this.p2 = vec4.fromValues(0.5, 0, -0.5,1);
     this.p3 = vec4.fromValues(-0.5,0, -0.5,1);
@@ -55,6 +55,11 @@ class Plane extends Mesh {
   loadMesh() {
     //console.log("loading cylinder")
     //let numPos = mesh.vertices.length / 3 * 4;
+
+    // let sx = this.scale[0]
+    // let sz = this.scale[2]
+    // let maxS = Math.max(sx, sz)
+
     this.positions = new Array<number>();
     this.normals = new Array<number>();
     this.colors = new Array<number>();

@@ -148,6 +148,25 @@ class BoundingBox2D {
     let res = vec2.fromValues(x,y)
     return res
   }
+
+  fromPosList(face : Array<vec4>, axis1 : number = 0, axis2 : number = 2) {
+    let minX = Number.MAX_VALUE
+    let maxX = -Number.MAX_VALUE
+    let minZ = Number.MAX_VALUE
+    let maxZ = -Number.MAX_VALUE
+
+    for(let i = 0 ; i < face.length; i++) {
+      minX = Math.min(face[i][axis1], minX)
+      maxX = Math.max(face[i][axis1], maxX)
+      minZ = Math.min(face[i][axis2], minZ)      
+      maxZ = Math.max(face[i][axis2], maxZ)
+    }
+
+    this.maxCorner = vec2.fromValues(maxX, maxZ)
+    this.minCorner = vec2.fromValues(minX, minZ)
+
+
+  }
 }
 
 
@@ -414,10 +433,7 @@ class Roads extends LSystem {
       //represents clockwise or ccw respective to orientation
       //so if orientation is -1, want the most counter clockwise rotated
       let a = Utils.radiansToDegrees(vec2.angle(prevEdge, nextEdge))
-/*
-      console.log("angle between " + v.id + " and " + candidates[i].id + ": " + a)
-      console.log("orient between " + v.id + " and " + candidates[i].id + ": " + orient)
-*/
+      
       if(orient == -1 && maxA < a) {
         mostCC = candidates[i]
         maxA = a
@@ -488,8 +504,8 @@ class Roads extends LSystem {
 
     this.adjList.forEach((v1: GraphVertex) => {
       v1.neighbors.forEach((v2 : GraphVertex) => {
-        this.drawVertex(v1)
-        this.drawVertex(v2)
+        //this.drawVertex(v1)
+        //this.drawVertex(v2)
 
         i++;
         let segVec = vec3.create()
@@ -498,16 +514,17 @@ class Roads extends LSystem {
         let crossVec = vec3.create();
         vec3.cross(crossVec, vec3.fromValues(0,1,0), segVec)
         vec3.normalize(crossVec,crossVec);
-        vec3.scale(crossVec, crossVec, 0.05)
+        vec3.scale(crossVec, crossVec, 0.15)
   
-        let planemesh = new PolyPlane()
-        planemesh.points.push(vec4.fromValues(v1.pos[0], 0, v1.pos[2], 1))
-        planemesh.points.push(vec4.fromValues(v1.pos[0] + crossVec[0], 0, v1.pos[2] + crossVec[2], 1))
-        planemesh.points.push(vec4.fromValues(v2.pos[0] + crossVec[0], 0, v2.pos[2] + crossVec[2], 1))
-        planemesh.points.push(vec4.fromValues(v2.pos[0], 0, v2.pos[2], 1))
+        let planemesh = new Plane()
+        planemesh.p1 = vec4.fromValues(v1.pos[0], 0, v1.pos[2], 1)
+        planemesh.p2 = vec4.fromValues(v1.pos[0] + crossVec[0], 0, v1.pos[2] + crossVec[2], 1)
+        planemesh.p3 = vec4.fromValues(v2.pos[0] + crossVec[0], 0, v2.pos[2] + crossVec[2], 1)
+        planemesh.p4 = vec4.fromValues(v2.pos[0], 0, v2.pos[2], 1)
 
-        //planemesh.m_color = vec4.fromValues(9.5,0.04 * i,0.5,1)
-        planemesh.m_color = Utils.randomColor()
+        planemesh.m_color = vec4.fromValues(0.1,0.1,0.1,1)
+        planemesh.uv_cell = 15
+        //planemesh.m_color = Utils.randomColor()
         planemesh.loadMesh();
         this.fullMesh.transformAndAppend(planemesh, planemesh);
   
@@ -528,7 +545,7 @@ class Roads extends LSystem {
 
         point[1] = 0.1   + 0.03;
         planemesh.points.push(point)
-        console.log(face[j].id)
+       // console.log(face[j].id)
 
         let pl = new PolyPlane()
         
@@ -559,7 +576,7 @@ class Roads extends LSystem {
     //this.pruneAdjList()
     //console.log
     this.drawEdges()
-    console.log("FUllmesh" + this.fullMesh.positions)
+   // console.log("FUllmesh" + this.fullMesh.positions)
     this.findFaces()
    // this.drawFaces()
   }
@@ -722,7 +739,7 @@ class Roads extends LSystem {
 
     let grad = vec2.fromValues(dh / 0.01, dhz / 0.01)
     dir = grad
-    console.log("grad " + grad)
+    //console.log("grad " + grad)
     let tensor = new TensorField()
     let radCenter = vec2.fromValues(0,0.0)
 
@@ -747,7 +764,7 @@ class Roads extends LSystem {
   // vec2.scaleAndAdd(min, tensor.minor, min, decay)
 
 
-    console.log("decay " + decay)
+   // console.log("decay " + decay)
   
   // vec2.lerp(maj, maj, tensor.major, 1)
   // vec2.lerp(min, min, tensor.minor, 1)
