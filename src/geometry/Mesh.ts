@@ -117,7 +117,6 @@ class Mesh extends Drawable {
 
     }
 
-    console.log(output);
     return output;
   }
 

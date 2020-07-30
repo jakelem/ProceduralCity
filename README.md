@@ -5,6 +5,8 @@ Shape Grammar Buildings
 
 L-System Foliage
 
+OBJ Exportability
+
 Tensor-field Based Road Generation
 
 Custom textures, normal mapping

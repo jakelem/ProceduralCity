@@ -79,7 +79,7 @@ class OpenGLRenderer {
 
   }
 
-  render(camera: Camera, prog: ShaderProgram, drawables: Array<Drawable>, inModel : mat4 = undefined) {
+  render(camera: Camera, prog: ShaderProgram, drawables: Array<Drawable>, inModel : mat4 = undefined, invertViewProj = false) {
     let model = mat4.create();
     let viewProj = mat4.create();
     let color = vec4.fromValues(1, 1, 0, 1);
@@ -91,7 +91,12 @@ class OpenGLRenderer {
     }
     mat4.multiply(viewProj, camera.projectionMatrix, camera.viewMatrix);
     prog.setModelMatrix(model);
+    if(invertViewProj) {
+      mat4.invert(viewProj, viewProj)
+    }
+
     prog.setViewProjMatrix(viewProj);
+
     prog.setGeometryColor(color);
 
     for (let drawable of drawables) {

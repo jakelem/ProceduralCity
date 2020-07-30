@@ -16,9 +16,7 @@ uniform mat4 u_ModelInvTr;  // The inverse transpose of the model matrix.
                             // This allows us to transform the object's normals properly
                             // if the object has been non-uniformly scaled.
 
-uniform mat4 u_ViewProj;    // The matrix that defines the camera's transformation.
-                            // We've written a static matrix for you to use for HW2,
-                            // but in HW3 you'll have to generate one yourself
+uniform mat4 u_ViewProj;    
 
 
 in vec2 vs_UV;

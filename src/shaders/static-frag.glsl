@@ -19,7 +19,11 @@ in vec4 fs_Nor;
 in vec4 fs_LightVec;
 in vec4 fs_Col;
 in vec4 fs_Pos;
+uniform mat4 u_ViewProj;    
+
 in vec2 fs_UV;
+uniform samplerCube u_SkyBox;
+uniform vec3 u_CamPos;
 uniform sampler2D u_ShadowMap;
 uniform sampler2D u_Texture;
 
@@ -104,8 +108,11 @@ void main()
        out_Col = vec4(uvToSunset(uv),1);
 	//out_Col = diffuseColor;
 
-out_Col =  texture(u_ShadowMap, fs_UV);
-//out_Col =  vec4(fs_UV,0.0,1.0);
-//out_Col =  vec4(gl_FragCoord.xy / 2048.0,0.0,1.0);
-
+//out_Col =  texture(u_ShadowMap, fs_UV);
+vec2 ndc = (fs_Pos.xy + 1.0);
+vec4 p = vec4(ndc, 1.0, 1.0) * 1000.0;
+p = u_ViewProj * p;
+vec3 dir = normalize(p.xyz - u_CamPos.xyz);
+out_Col =  texture(u_SkyBox, dir);
+//out_Col = vec4((fs_Pos + 1.0) * 0.5);
 }

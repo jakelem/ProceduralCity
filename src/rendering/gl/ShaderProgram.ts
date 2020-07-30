@@ -41,6 +41,7 @@ class ShaderProgram {
 
   shadowMap : WebGLUniformLocation;
   texture:WebGLUniformLocation;
+  unifSkybox:WebGLUniformLocation;
   bump:WebGLUniformLocation;
   unifCamPos:WebGLUniformLocation;
   constructor(shaders: Array<Shader>) {
@@ -67,6 +68,8 @@ class ShaderProgram {
     this.unifColor      = gl.getUniformLocation(this.prog, "u_Color");
     this.unifTime     = gl.getUniformLocation(this.prog, "u_Time");
     this.unifTexture     = gl.getUniformLocation(this.prog, "u_Texture");
+    this.unifSkybox     = gl.getUniformLocation(this.prog, "u_SkyBox");
+
     this.unifBump     = gl.getUniformLocation(this.prog, "u_NormalMap");
     this.unifShadowMap     = gl.getUniformLocation(this.prog, "u_ShadowMap");
     this.unifLightViewProj     = gl.getUniformLocation(this.prog, "u_LightViewProj");
@@ -87,6 +90,37 @@ class ShaderProgram {
 static isPowerOf2(value : number) {
   return (value & (value - 1)) === 0;
 }
+
+
+makeCubeMapTexture(srcs:Array<string>) {
+  let texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
+
+  for(let i = 0; i < 6; i++) {
+    let target = gl.TEXTURE_CUBE_MAP_POSITIVE_X + i
+    let src = srcs[i]
+    let image = new Image()
+    image.src = src;
+    image.crossOrigin = "anonymous";
+
+    image.addEventListener('load', function() {
+      // Now that the image has loaded make copy it to the texture.
+      gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
+      gl.texImage2D(target, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+      //gl.generateMipmap(gl.TEXTURE_CUBE_MAP);
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+  
+    });
+  }
+
+  return texture
+}
+
+
 
 makeTexture(src:string) {
   let texture = gl.createTexture();
@@ -118,6 +152,22 @@ makeTexture(src:string) {
   });
 
   return texture;
+}
+
+createSkyBoxCubeMap() {
+  this.use()
+  let folder = "./textures/skycube/"
+  let srcs = [folder + "pos-x.png",folder + "neg-x.png",folder + "pos-y.png",folder + "neg-y.png"
+  ,folder + "pos-z.png",folder + "neg-z.png"]
+  let map = this.makeCubeMapTexture(srcs);
+
+  gl.uniform1i(this.unifSkybox, 3);
+
+  gl.activeTexture(gl.TEXTURE3); //GL supports up to 32 different active textures at once(0 - 31)
+  gl.bindTexture(gl.TEXTURE_CUBE_MAP, map);
+  gl.uniform1i(this.unifSkybox, 3);
+
+
 }
 
 

@@ -145,6 +145,8 @@ function main() {
   ]);
 
   lambert.createTexture();
+  lambert.createSkyBoxCubeMap();
+
   lambert.makeLightViewProj();
   lambert.createBump();
 
@@ -161,6 +163,7 @@ function main() {
     new Shader(gl.FRAGMENT_SHADER, require('./shaders/static-frag.glsl')),
   ]);
   background.createTexture();
+  background.createSkyBoxCubeMap();
 
 
 
@@ -187,21 +190,14 @@ function main() {
     if(controls["Draw Shadow Map"]) {
       renderer.render(camera, background, [
         square,
-      ]);
+      ],undefined,true);
     }
 
 
-    renderer.render(camera, lambert, [
-      //icosphere,
-      //m_mesh,
-    ]);
-
-    renderer.render(camera, planet, [
-      //icosphere,
-     // grammar.m_roads.fullMesh
-    ]);
 
     time += 1;
+    background.setCamPos(camera.controls.eye);
+
     background.setTime(time);
     
     //console.log(grammar.meshes);

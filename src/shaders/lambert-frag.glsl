@@ -28,7 +28,7 @@ in vec3 fs_Tan;
 in vec4 fs_LightPos;
 in vec4 fs_Pos;
 uniform vec3 u_CamPos;
-
+uniform samplerCube u_SkyBox;
 uniform sampler2D u_ShadowMap;
 
 uniform sampler2D u_Texture;
@@ -71,6 +71,7 @@ void main()
     	vec4 normSample = texture(u_NormalMap, fs_UV);
         vec3 norm = vec3(normSample);
         float spec = normSample.a;
+spec = clamp(spec-0.1,0.0,1.0);
 
         vec3 tanLightVec = normalize(fs_TanLightPos.xyz - fs_TanPos.xyz);
                 vec3 tanViewVec = normalize(fs_TanPos.xyz - fs_TanCamPos.xyz);
@@ -79,64 +80,46 @@ void main()
 
 
 	norm = normalize(norm * 2.0 - 1.0);
-       // norm = vec3(0.0,0.0,1.0);
 
-	//norm *= norm;
         if(diffuseColor.a < 0.1)
             discard;
 
-    	//diffuseColor = vec4(fs_UV, 1,1);
 
         // Calculate the diffuse term for Lambert shading
         float diffuseTerm = dot(norm.xyz, normalize(tanLightVec));
 
 
+	vec4 cubeSample = texture(u_SkyBox, h.xyz);
+       
 
-        //diffuseTerm = dot(fs_Nor.xyz, normalize(fs_LightPos.xyz - fs_Pos.xyz));
-        // Avoid negative lighting values
-        //diffuseTerm = clamp(diffuseTerm, 0.0, 1.0);
 	diffuseTerm = max(diffuseTerm,0.0);
 
 	float specularIntensity = spec * 0.2* max(pow(clamp(dot(h, norm.xyz), 0.0, 1.0), 12.0), 0.0);
 
-        //float dif = sqrt(clamp( 0.5+0.5*nor.y, 0.0, 1.0 ));
 
         float avg = 0.0;
         float count = 0.0;
 	for(int i = -2; i <= 2; i++) {
         for(int j = -2; j <= 2; j++) {
-        //float shadow_dist = texture(u_ShadowMap, 
-       // fs_LightSpacePos.xy + texSize * vec2(i, j)).x;
         vec2 rand = hash(fs_UV);
-        //if(fs_LightSpacePos.z < shadow_dist + 0.003) {
-		//avg += lerpShadow(fs_LightSpacePos.xy + texSize * (vec2(i, j) + rand));
-                avg += inShadow(fs_LightSpacePos.xy + texSize * (vec2(i, j) + rand));
-	//}
+           avg += inShadow(fs_LightSpacePos.xy + texSize * (vec2(i, j) + rand));
+	
         count++;
 	}	
 	}
 
         avg /= count;	
 
-//avg = lerpShadow(fs_LightSpacePos.xy);
+	//avg = lerpShadow(fs_LightSpacePos.xy);
         float lightIntensity = (diffuseTerm * 1.5 + specularIntensity) * avg;
+	diffuseColor = mix(diffuseColor, cubeSample, clamp(spec * 0.7, 0.0,1.0));
 
-
-        //if(fs_LightSpacePos.z >= shadow_dist + 0.009) {
-		//lightIntensity = 0.0;
-	//}
 
         float test = dot(fs_Nor.xyz, fs_Tan.xyz);
-        // Compute final shaded color
         out_Col = vec4(diffuseColor.rgb * lightIntensity,1.0);
 
-        //if(lightIntensity < 0.2) {
-         float ambientTerm = clamp(0.6 - lightIntensity, 0.0, 1.0);
+        float ambientTerm = clamp(0.6 - lightIntensity, 0.0, 1.0);
         out_Col +=  ambientTerm * vec4(0.6,0.8,0.9, 0.0) * vec4(diffuseColor.rgb,0.0);
         
-        //}
-
-        //out_Col = texture(u_ShadowMap, fs_LightSpacePos.xy);
-//out_Col*= out_Col;
 
 }

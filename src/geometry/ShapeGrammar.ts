@@ -2409,7 +2409,6 @@ class ShapeGrammar {
 
   createAll() {
     this.fullMesh.computeTBN();
-    console.log(this.fullMesh.tangents)
     this.fullMesh.create();
     for (let mesh of this.meshes) {
       //mesh.create();
