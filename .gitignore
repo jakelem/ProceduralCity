@@ -1,1 +1,15 @@
 node_modules/
+render/
+textures/icelandtextures.psd
+textures/iceland_normal_map.psd
+textures/textures.psd
+textures/normal_map.psd
+textures/sky.psd
+textures/icelandtextures.tx
+textures/normal_map.tx
+textures/textures.tx
+textures/iceland_normal_map.tx
+geo/building.mb
+geo/building2.mb
+geo/orchid.mb
+.DS_Store

@@ -19,6 +19,7 @@
     "3d-view-controls": "^2.2.0",
     "dat-gui": "^0.5.0",
     "file-saver": "^2.0.2",
+    "get-pixels": "^3.3.2",
     "gl-matrix": "^2.4.0",
     "obj-mtl-loader": "0.0.5",
     "stats-js": "^1.0.0-alpha1",

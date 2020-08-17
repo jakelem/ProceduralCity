@@ -45,7 +45,8 @@ out vec4 fs_Col;            // The color of each vertex. This is implicitly pass
 
 out vec2 fs_UV;            // The color of each vertex. This is implicitly passed to the fragment shader.
 
-const vec4 lightPos = vec4(5, 5, 0, 1); //The position of our virtual light, which is used to compute the shading of
+uniform vec3 u_LightPos;
+const vec4 lightPos = vec4(-20, 8, 0, 1); //The position of our virtual light, which is used to compute the shading of
                                         //the geometry in the fragment shader.
 out mat3 fs_TBN;
 
@@ -67,7 +68,8 @@ void main()
 
     vec4 modelposition = u_Model * vs_Pos;   // Temporarily store the transformed vertex positions for use below
     fs_Pos = modelposition;
-    fs_LightPos = lightPos;
+    vec4 light4 = vec4(u_LightPos,1.0);
+    fs_LightPos = light4;
 
 fs_LightSpacePos = u_LightViewProj * modelposition;
 fs_LightSpacePos = fs_LightSpacePos * 0.5 + 0.5;
@@ -84,7 +86,7 @@ mat3 invTBN = transpose(TBN);
 fs_Tan = T;
 
 
-fs_TanLightPos = vec4(invTBN  * vec3(lightPos), 1);
+fs_TanLightPos = vec4(invTBN  * vec3(light4), 1);
 fs_TanCamPos = vec4(invTBN  * vec3(u_CamPos), 1);
 fs_TanPos = vec4(invTBN  * vec3(modelposition), 1);
 

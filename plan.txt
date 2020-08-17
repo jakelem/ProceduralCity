@@ -1,0 +1,5 @@
+1. parcel subdivision
+
+
+1. more art directability in roads, make probability based in minor road offshooting major road
+2. add priority queue implementation of next segments l-system

@@ -108,11 +108,11 @@ void main()
        out_Col = vec4(uvToSunset(uv),1);
 	//out_Col = diffuseColor;
 
-//out_Col =  texture(u_ShadowMap, fs_UV);
+out_Col =  texture(u_ShadowMap, fs_UV);
 vec2 ndc = (fs_Pos.xy + 1.0);
 vec4 p = vec4(ndc, 1.0, 1.0) * 1000.0;
 p = u_ViewProj * p;
 vec3 dir = normalize(p.xyz - u_CamPos.xyz);
-out_Col =  texture(u_SkyBox, dir);
+//out_Col =  texture(u_SkyBox, dir);
 //out_Col = vec4((fs_Pos + 1.0) * 0.5);
 }

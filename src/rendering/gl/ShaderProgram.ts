@@ -38,6 +38,7 @@ class ShaderProgram {
   unifLightViewProj : WebGLUniformLocation;
   unifShadowMap :WebGLUniformLocation;
   unifKernel : WebGLUniformLocation
+  unifLightPos : WebGLUniformLocation
 
   shadowMap : WebGLUniformLocation;
   texture:WebGLUniformLocation;
@@ -76,6 +77,7 @@ class ShaderProgram {
     this.unifKernel     = gl.getUniformLocation(this.prog, "u_Kernel");
 
     this.unifCamPos     = gl.getUniformLocation(this.prog, "u_CamPos");
+    this.unifLightPos     = gl.getUniformLocation(this.prog, "u_LightPos");
 
   }
 
@@ -171,22 +173,23 @@ createSkyBoxCubeMap() {
 }
 
 
-createTexture() {
+createTexture(url = "./textures/textures.png") {
   this.use();
   // setting up texture in OpenGL
 
-  let texture = this.makeTexture("./textures/textures.png");
+  let texture = this.makeTexture(url);
+
   this.texture = texture;
   
   gl.uniform1i(this.unifTexture, 0);
 
 }
 
-createBump() {
+createBump(url = "./textures/normal_map.png") {
   this.use();
   // setting up texture in OpenGL
 
-  this.bump = this.makeTexture("./textures/normal_map.png");
+  this.bump = this.makeTexture(url);
   
   gl.uniform1i(this.unifBump, 1);
 
@@ -196,20 +199,21 @@ makeLightViewProj() {
   let depthFramebuffer = gl.createFramebuffer();
   //gl.bindFramebuffer(gl.FRAMEBUFFER, depthFramebuffer);
 
-  let lightPos = vec3.fromValues(5, 5, 0);
-  let projWidth = 8.5;
-  let projHeight = 8.5;
-
+  let lightPos = vec3.fromValues(-40, 40, 20);
+  let projWidth = 20.5;
+  let projHeight = 20.5;
+  let near = 20;
+  let far = 100;
   this.shadowMap = gl.createTexture() 
   let lightView = mat4.create()
-  mat4.lookAt(lightView,lightPos,vec3.create(), vec3.fromValues(0,1,0))
+  mat4.lookAt(lightView,lightPos,vec3.create(), vec3.fromValues(0,2,0))
   let lightProj = mat4.create()
   lightProj = mat4.ortho(lightProj,-projWidth * 0.5,projWidth * 0.5,
-    -projHeight * 0.5,projHeight * 0.5,0.1,10)
+    -projHeight * 0.5,projHeight * 0.5,near,far)
   let lightViewProj = mat4.create()
   mat4.multiply(lightViewProj, lightProj, lightView)
   this.setLightViewProjMatrix(lightViewProj)
-  
+  this.setLightPos(lightPos)
 }
 
 
@@ -219,6 +223,13 @@ setKernelMatrix(kernel : mat3) {
     gl.uniformMatrix3fv(this.unifKernel, false, kernel);
   }
 
+}
+
+setLightPos(pos : vec3) {
+  this.use()
+  if(this.unifLightPos !== -1) {
+    gl.uniform3fv(this.unifLightPos, pos);
+  }
 }
 
   setModelMatrix(model: mat4) {

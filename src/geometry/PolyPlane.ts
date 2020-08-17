@@ -3,6 +3,7 @@ import Drawable from '../rendering/gl/Drawable';
 import {gl} from '../globals';
 import { SSL_OP_SSLEAY_080_CLIENT_DH_BUG } from 'constants';
 import {BoundingBox2D} from './Roads';
+import Utils from './Utils';
 
 import Mesh from './Mesh';
 import { pseudoRandomBytes } from 'crypto';
@@ -44,6 +45,15 @@ class PolyPlane extends Mesh {
     this.maxIdx = -1;
     this.points = new Array<vec4>()
   }
+
+  copyPointsFrom(p : PolyPlane) {
+    this.points = new Array<vec4>()
+    for(let i = 0; i < p.points.length;i++) {
+      let v = vec4.create()
+      vec4.copy(v, p.points[i])
+      this.points.push(v)
+    } 
+  }
   
 
   loadMesh() {
@@ -67,20 +77,42 @@ class PolyPlane extends Mesh {
 
     let maxrange = Math.max(range[0], range[1])
    // console.log("range " + range)
+
+   let norm = vec4.fromValues(0,0,0,0)
+
+   if(this.points.length > 2) {
+    for(let k = 0; k < this.points.length; k++) {
+
+      let p0 = k > 0 ? Utils.xyz(this.points[k - 1]) : Utils.xyz(this.points[this.points.length - 1])
+      let p1 = Utils.xyz(this.points[k])
+      let p2 = k < this.points.length - 1 ? Utils.xyz(this.points[k + 1]) : Utils.xyz(this.points[0])
+      vec4.add(norm, norm, Utils.vec3ToVec4(Utils.calcNormal(p0,p1,p2),0))  
+    }
+
+    vec4.scale(norm, norm, this.points.length)
+   }
     for(let k = 0; k < this.points.length; k++) {
 
       let p = this.points[k]
       pos.push(p);
 
       let u1 = vec2.fromValues((p[0] - bb.minCorner[0]) / range[0],(p[2] - bb.minCorner[1]) / range[1]);
-      //let u1 = vec2.fromValues((p[0] - bb.minCorner[0]) / maxrange,(p[2] - bb.minCorner[1] / maxrange));
-      //vec2.random(u1)
-      if(u1[0] < 0 || u1[1] < 0) {
-        console.log("polyplane baddy " + u1)
-      }
+
       uvs.push(u1);
       col.push(this.m_color);
-      let norm = vec4.fromValues(0,1,0,0);
+
+      let p0 = k > 0 ? Utils.xyz(this.points[k - 1]) : Utils.xyz(this.points[this.points.length - 1])
+      let p1 = Utils.xyz(this.points[k])
+      let p2 = k < this.points.length - 1 ? Utils.xyz(this.points[k + 1]) : Utils.xyz(this.points[0])
+
+      // let e1 = vec3.create()
+      // vec3.subtract(e1, p1, p0)
+      // let e2 = vec3.create()
+      // vec3.subtract(e1, p2, p1)
+
+
+      //let norm = Utils.vec3ToVec4(Utils.calcNormal(p0,p1,p2),0)
+      //let norm = vec4.fromValues(0,1,0,0);
       nor.push(norm);
     }
       //fan method for faces

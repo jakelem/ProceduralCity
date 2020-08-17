@@ -120,6 +120,7 @@ spec = clamp(spec-0.1,0.0,1.0);
 
         float ambientTerm = clamp(0.6 - lightIntensity, 0.0, 1.0);
         out_Col +=  ambientTerm * vec4(0.6,0.8,0.9, 0.0) * vec4(diffuseColor.rgb,0.0);
-        
-
+        float dist = clamp(length(vec3(fs_Pos) - u_CamPos) * 0.03 - 1.5, 0.0, 1.0);
+        out_Col = mix(out_Col, vec4(0.7,0.8,1.0,1.0), dist);
+        //out_Col = vec4(dist, dist, dist, 1);
 }

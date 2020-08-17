@@ -1,7 +1,73 @@
-import {vec2, vec3, vec4, mat4} from 'gl-matrix';
+import {vec2, vec3, vec4, mat4, quat} from 'gl-matrix';
 
 
 class Utils {
+
+    //returns axis-angle representation of a rotation to the xz plane
+    static rotateToXZPlane(v : vec3) {
+        let rot_vec = vec3.create()
+        vec3.cross(rot_vec, v, vec3.fromValues(0,1,0))
+        vec3.normalize(rot_vec, rot_vec)
+        let l = vec3.length(rot_vec)
+        
+        let angle = -vec3.angle(v, vec3.fromValues(0,1,0))
+        return Utils.vec3ToVec4(rot_vec,angle)
+    } 
+
+    static bilinearInterp(p1 : vec3, p2: vec3, p3: vec3, p4: vec3) {
+        let midpt = vec3.create()
+        vec3.lerp(midpt, p1, p2, 0.5)
+  
+        let m2 = vec3.create()
+        vec3.lerp(m2, p3, p4, 0.5)
+        vec3.lerp(midpt, midpt, m2, 0.5)
+        return midpt
+    }
+
+    static xyz(v:any) {
+        return vec3.fromValues(v[0], v[1], v[2])
+    }
+
+    static vec3toVec4(v : vec3, w : number) {
+        return vec4.fromValues(v[0],v[1],v[2],w)
+    }
+    static eulerXYZDegrees(rotate:vec3) {
+        let transform = mat4.create() 
+        mat4.rotateX(transform, transform, rotate[0] * Math.PI / 180);
+        mat4.rotateY(transform, transform, rotate[1] * Math.PI / 180);
+        mat4.rotateZ(transform, transform, rotate[2] * Math.PI / 180);
+        return transform
+    }
+    static calcNormal(p1 : vec3, p2 : vec3, p3 : vec3) {
+        let e1 = vec3.create()
+        vec3.subtract(e1, p2, p1)
+        vec3.normalize(e1,e1)
+        let e2 = vec3.create()
+        vec3.subtract(e2, p3, p2)
+        vec3.normalize(e2,e2)
+
+        let norm = vec3.create()
+        vec3.cross(norm, e1, e2)
+        vec3.normalize(norm, norm)
+        return norm
+    }
+
+    static directionBetween(p1: vec3, p2:vec3) {
+        let edge = vec3.create()
+        vec3.subtract(edge, p1, p2)
+        vec3.normalize(edge, edge)
+        return edge
+  
+    }
+
+    static eulerXYZRadians(rotate:vec3) {
+        let transform = mat4.create() 
+        mat4.rotateX(transform, transform, rotate[0]);
+        mat4.rotateY(transform, transform, rotate[1]);
+        mat4.rotateZ(transform, transform, rotate[2]);
+        return transform
+    }
+
     static copyVec3(v : vec3) {
         let res = vec3.create()
         vec3.copy(res, v)
@@ -30,15 +96,25 @@ class Utils {
         return vec4.fromValues(r, g, b, 1);
     }
 
+    static count = 0;
+    static seeds = [0.0,0.4,0.1,0.2, 1.0, 0.9, 0.942,0.1943,0.14578,0.9876,0.56,0.1837,0.34,0.23]
+    //static seeds = [0.2, 0.3, 0.0,0.4,0.1,0.2, 1.0, 0.9, 0.942,0.1943,0.14578,0.9876,0.56,0.1837,0.34,0.23]
+    //wrapper so that if we want a deterministic generation, can replace math.random() with deterministic value
+    static random() {
+        return Math.random()
+        
+        Utils.count++;
+        return Utils.seeds[(Utils.count+ 2) % Utils.seeds.length];
+    }
+
     static randomIntRange(min : number, max : number) {
         return Math.floor(Utils.randomFloatRange(min, max));
     }
 
     static randomFloatRange(min : number, max : number) {
-        let diff = max - min;
-        return min + Math.random() * diff;
+        let diff = Math.abs(max - min);
+        return min + Utils.random() * diff;
     }
-
 
     static clamp(p : number, min : number, max : number) {
         return Math.min(Math.max(p, min), max);
@@ -156,6 +232,23 @@ class Utils {
         let height = vec2.dot(diff, gradient);
         return height * t[0] * t[1];
     
+    }
+
+    static quatToEuler(q : quat) {
+        let h = Math.atan2(2* q[1] * q[3] - 2 * q[0] * q[2], 1 - 2 * q[1] * q[1] - 2 * q[2] * q[2])
+        let a = Math.asin(2 * q[0] * q[1] + 2 * q[2] * q[3])
+        let b = Math.atan2(2 * q[0] * q[3] - 2 * q[1] * q[2], 1 - 2 * q[0] * q[0] - 2 * q[2] * q[2])
+
+        let s = q[0] + q[1] + q[2] * q[3]
+        if(s == 0.5) {
+            h = 2 * Math.atan2(q[0],q[3])
+            b = 0
+        } else if(s == -0.5) {
+            h = -2 * Math.atan2(q[0],q[3])
+
+            b = 0
+        }
+        return vec3.fromValues(b,h,a)
     }
 
     static surflet3(p: vec3, gridPoint : vec3) {
